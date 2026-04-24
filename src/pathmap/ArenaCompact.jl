@@ -810,6 +810,59 @@ act_val_count(z::ACTZipper) = begin
 end
 
 # =====================================================================
+# zipper_* dispatch aliases so ACTZipper satisfies the generic zipper interface.
+# Required for PrefixZipper{ACTZipper} and ProductZipperG factor dispatch.
+# =====================================================================
+
+zipper_reset!(z::ACTZipper)                         = act_reset!(z)
+zipper_path(z::ACTZipper)                           = act_path(z)
+zipper_path_exists(z::ACTZipper)                    = act_path_exists(z)
+zipper_is_val(z::ACTZipper)                         = act_is_val(z)
+zipper_child_count(z::ACTZipper)                    = act_child_count(z)
+zipper_child_mask(z::ACTZipper)                     = act_child_mask(z)
+zipper_val_count(z::ACTZipper)                      = act_val_count(z)
+zipper_at_root(z::ACTZipper)                        = act_at_root(z)
+zipper_descend_to!(z::ACTZipper, p)                 = act_descend_to!(z, p)
+zipper_descend_to_existing!(z::ACTZipper, p)        = act_descend_to_existing!(z, p)
+zipper_descend_to_byte!(z::ACTZipper, b::UInt8)     = act_descend_to_byte!(z, b)
+zipper_descend_first_byte!(z::ACTZipper)            = act_descend_first_byte!(z)
+zipper_descend_until!(z::ACTZipper)                 = act_descend_until!(z)
+zipper_ascend!(z::ACTZipper, n::Int=1)              = (act_ascend!(z, n); n > 0)
+zipper_ascend_byte!(z::ACTZipper)                   = act_ascend_byte!(z)
+zipper_ascend_until!(z::ACTZipper)                  = act_ascend_until!(z)
+zipper_ascend_until_branch!(z::ACTZipper)           = act_ascend_until_branch!(z)
+zipper_to_next_sibling_byte!(z::ACTZipper)          = act_to_next_sibling_byte!(z)
+zipper_to_prev_sibling_byte!(z::ACTZipper)          = act_to_prev_sibling_byte!(z)
+zipper_to_next_val!(z::ACTZipper)                   = act_to_next_val!(z)
+
+# =====================================================================
+# _zpg_* dispatch so ACTZipper works as a ProductZipperG factor.
+# Defined here (after ACTZipper) so they resolve; _zpg_* functions
+# themselves are defined earlier in zipper/ProductZipperG.jl.
+# =====================================================================
+
+_zpg_path_exists(z::ACTZipper)                 = act_path_exists(z)
+_zpg_is_val(z::ACTZipper)                      = act_is_val(z)
+_zpg_child_count(z::ACTZipper)                 = act_child_count(z)
+_zpg_child_mask(z::ACTZipper)                  = act_child_mask(z)
+_zpg_path(z::ACTZipper)                        = act_path(z)
+_zpg_origin_path(z::ACTZipper)                 = z.path
+_zpg_root_prefix_len(z::ACTZipper)             = z.origin_depth
+_zpg_at_root(z::ACTZipper)                     = act_at_root(z)
+_zpg_reset!(z::ACTZipper)                      = act_reset!(z)
+_zpg_descend_to_existing!(z::ACTZipper, p)     = act_descend_to_existing!(z, p)
+_zpg_descend_to!(z::ACTZipper, p)              = act_descend_to!(z, p)
+_zpg_descend_to_byte!(z::ACTZipper, b)         = act_descend_to_byte!(z, b)
+_zpg_descend_first_byte!(z::ACTZipper)         = act_descend_first_byte!(z)
+_zpg_descend_until!(z::ACTZipper)              = act_descend_until!(z)
+_zpg_ascend_byte!(z::ACTZipper)                = act_ascend_byte!(z)
+_zpg_ascend!(z::ACTZipper, n)                  = (act_ascend!(z, n); true)
+_zpg_ascend_until!(z::ACTZipper)               = act_ascend_until!(z)
+_zpg_ascend_until_branch!(z::ACTZipper)        = act_ascend_until_branch!(z)
+_zpg_to_next_sibling_byte!(z::ACTZipper)       = act_to_next_sibling_byte!(z)
+_zpg_to_next_val!(z::ACTZipper)                = act_to_next_val!(z)
+
+# =====================================================================
 # Exports
 # =====================================================================
 

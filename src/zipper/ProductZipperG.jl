@@ -98,6 +98,9 @@ _zpg_to_next_val!(z::ReadZipperCore)   = zipper_to_next_val!(z)
 _zpg_to_next_val!(z::PrefixZipper)     = pz_to_next_val!(z)
 _zpg_to_next_val!(z::DependentZipper)  = dpz_to_next_val!(z)
 
+# NOTE: ACTZipper _zpg_* overloads are defined in pathmap/ArenaCompact.jl
+# (after ACTZipper is defined) so they can reference ACTZipper by name.
+
 # =====================================================================
 # ProductZipperG struct
 # =====================================================================
