@@ -399,7 +399,15 @@ function zipper_val_count(z::ReadZipperCore{V,A}) where {V,A}
             _, sub_rc = result
             val_count_below_root(_fnode(_rc_inner(sub_rc), V, A)) + root_val_cnt
         else
-            root_val_cnt
+            # `nk` is a prefix of a stored edge key (partial-prefix from read_zipper_at_path).
+            # Mirrors Rust get_node_at_key which synthesises a virtual sub-node for the
+            # remaining edge bytes. Use iteration fallback: copy the zipper and count.
+            cnt = root_val_cnt
+            z2 = deepcopy(z)
+            while zipper_to_next_val!(z2)
+                cnt += 1
+            end
+            cnt
         end
     end
 end
