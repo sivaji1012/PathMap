@@ -102,6 +102,68 @@ function _wz_replace_top_node!(z::WriteZipperCore{V,A},
 end
 
 # =====================================================================
+# _wz_parent_key_for_level — key bytes navigating from level k-1 to k
+# =====================================================================
+
+@inline function _wz_parent_key_for_level(z::WriteZipperCore, k::Int)
+    # k is 1-indexed, k >= 2. Returns the byte slice that the parent node
+    # at focus_stack[k-1] uses to reach focus_stack[k].
+    key_start = k == 2 ? z.root_key_start : z.prefix_idx[k-2]
+    key_end   = z.prefix_idx[k-1]
+    view(z.prefix_buf, key_start+1:key_end)
+end
+
+# =====================================================================
+# _wz_ensure_write_unique! — lazy COW path uniquification
+# =====================================================================
+#
+# Implements A.0004 "Scouting WriteZipper" lazy-COW semantics.
+# Descent (in _wz_descend_to_internal!) is read-only — no cloning happens.
+# This function is called at every mutation entry point to ensure the
+# entire path from root to focus is uniquely owned before any write.
+#
+# Algorithm:
+#   Walk focus_stack from root (k=1) to focus (k=end).
+#   If node k has refcount > 1: call make_unique! (clones inner node in-place).
+#   If parent (k-1) was just cloned: its clone_self used deepcopy, so its
+#     child slot points to a fresh copy, not our focus_stack[k]. Re-link.
+
+function _wz_ensure_write_unique!(z::WriteZipperCore{V,A}) where {V,A}
+    n = length(z.focus_stack)
+    n == 0 && return
+    parent_was_cloned = false
+    for k in 1:n
+        rc = z.focus_stack[k]
+        rc.node === nothing && break
+        was_cloned = false
+        if refcount(rc) > 1
+            # Explicitly shared via copy(): safe to modify rc's fields in-place.
+            # make_unique! decrements the shared refcount and replaces rc.node.
+            make_unique!(rc)
+            was_cloned = true
+        elseif parent_was_cloned
+            # Transitively shared: refcount==1 but an ancestor was just cloned,
+            # so the original ancestor's subtrie STILL references this TrieNodeODRc
+            # via the original (pre-clone) inner node's child slot.
+            # We CANNOT modify rc.node in-place — that would alias m1's subtrie.
+            # Create a completely new TrieNodeODRc so we leave rc (and m1) untouched.
+            new_rc = clone_self(rc.node)   # new TrieNodeODRc, refcount=1, fresh inner node
+            z.focus_stack[k] = new_rc
+            rc = new_rc
+            was_cloned = true
+        end
+        # Parent was cloned (its inner node is a fresh deepcopy) — the deepcopy's
+        # child slot holds a stale copy, not our focus_stack[k]. Re-link the parent
+        # to point to the real (now unique) rc.
+        if parent_was_cloned && k > 1
+            pk = collect(_wz_parent_key_for_level(z, k))
+            node_replace_child!(z.focus_stack[k-1].node, pk, rc)
+        end
+        parent_was_cloned = was_cloned
+    end
+end
+
+# =====================================================================
 # _wz_in_mut_static_result! — try mutation, handle upgrade
 # =====================================================================
 #
@@ -112,6 +174,7 @@ end
 function _wz_in_mut_static_result!(z::WriteZipperCore{V,A},
                                     node_f::Function,
                                     retry_f::Function) where {V,A}
+    _wz_ensure_write_unique!(z)
     key        = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
     result     = node_f(focus_node, key)
@@ -230,6 +293,7 @@ function wz_remove_val!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
         z.pathmap.root_val = nothing
         return old_val
     end
+    _wz_ensure_write_unique!(z)
     focus_node = z.focus_stack[end].node
     node_remove_val!(focus_node, nk, prune)
 end
@@ -435,6 +499,7 @@ end
 # prune=true path (prune_path_internal) is deferred — passing false is safe.
 
 function _wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool) where {V,A}
+    _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     if !isempty(nk)
         focus_node = z.focus_stack[end].node
@@ -504,7 +569,10 @@ end
 Replace the subtrie at the cursor with `map`'s root node.
 """
 function wz_graft_map!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,A}
-    _wz_graft_internal!(z, map.root)
+    # copy() bumps the refcount so both map and the graft site track sharing;
+    # make_unique! at write time will then COW-clone before any mutation.
+    src = map.root !== nothing ? copy(map.root) : nothing
+    _wz_graft_internal!(z, src)
 end
 
 # =====================================================================
@@ -568,12 +636,12 @@ function wz_join_map_into!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,
     end
     focus_anr = _wz_get_focus_anr(z)
     if is_none(focus_anr)
-        _wz_graft_internal!(z, src_rc)
+        _wz_graft_internal!(z, copy(src_rc))
         return ALG_STATUS_ELEMENT
     end
     self_node = as_tagged(focus_anr)
     if node_is_empty(self_node)
-        _wz_graft_internal!(z, src_rc)
+        _wz_graft_internal!(z, copy(src_rc))
         return ALG_STATUS_ELEMENT
     end
     result = pjoin_dyn(self_node, src_rc.node)
@@ -581,8 +649,9 @@ function wz_join_map_into!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,
         _wz_graft_internal!(z, result.value)
         ALG_STATUS_ELEMENT
     elseif result isa AlgResIdentity
+        # src_rc is from map.root — copy() so both map and graft site track sharing
         result.mask & SELF_IDENT > 0 ? ALG_STATUS_IDENTITY :
-            (_wz_graft_internal!(z, src_rc); ALG_STATUS_ELEMENT)
+            (_wz_graft_internal!(z, copy(src_rc)); ALG_STATUS_ELEMENT)
     else
         _wz_graft_internal!(z, nothing)
         ALG_STATUS_NONE
@@ -1094,6 +1163,7 @@ end
 
 export WriteZipperCore, WriteZipperUntracked
 export _wz_at_root, _wz_node_key, _wz_node_key_start
+export _wz_parent_key_for_level, _wz_ensure_write_unique!
 export wz_set_val!, wz_remove_val!
 export wz_descend_to!, wz_ascend!
 export wz_path_exists, wz_is_val, wz_get_val, wz_path
