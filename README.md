@@ -306,15 +306,29 @@ az  = ACTZipper(act)          # navigate without loading into RAM
 
 | Document | Description |
 |----------|-------------|
+**Guides**
+
+| Document | Description |
+|----------|-------------|
 | [Getting Started](docs/guide/getting_started.md) | Installation, first map, iteration |
-| [Zipper Guide](docs/guide/zippers.md) | Navigating and mutating tries |
-| [Algebraic Operations](docs/guide/algebra.md) | Join, meet, subtract, restrict |
-| [Morphisms](docs/guide/morphisms.md) | Cata/ana fold patterns |
-| [Policy API](docs/advanced/policy_api.md) | Custom value-merge policies |
-| [Lazy COW](docs/advanced/lazy_cow.md) | Copy-on-write internals |
-| [Hybrid Cata](docs/advanced/hybrid_cata.md) | Caching + path visibility |
+| [Zipper Guide](docs/guide/zippers.md) | Read/write zippers, abstract combinators, ZipperHead |
+| [Algebraic Operations](docs/guide/algebra.md) | Join, meet, subtract, restrict with examples |
+| [Morphisms](docs/guide/morphisms.md) | Cata/ana fold patterns, complexity guide |
 | [Serialization](docs/guide/serialization.md) | .paths and ACT formats |
-| [API Reference](docs/api/README.md) | Full exported symbol index |
+
+**Advanced**
+
+| Document | Description |
+|----------|-------------|
+| [Policy API](docs/advanced/policy_api.md) | Pluggable value-merge policies |
+| [Lazy COW](docs/advanced/lazy_cow.md) | Copy-on-write internals, two-phase design |
+| [Hybrid Cata](docs/advanced/hybrid_cata.md) | A.0005: caching + full path visibility |
+
+**Reference**
+
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/api/README.md) | Full exported symbol index (100+ entries) |
 
 ---
 
