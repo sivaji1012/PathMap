@@ -93,6 +93,9 @@ include("pathmap/PathsSerialization.jl")
 # Counters. Ports pathmap/src/counters.rs.
 include("pathmap/Counters.jl")
 
+# Policy-based algebraic operations (A.0003).
+include("pathmap/PolicyOps.jl")
+
 """
     version() -> VersionNumber
 """

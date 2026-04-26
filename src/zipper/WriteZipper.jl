@@ -1090,6 +1090,75 @@ function wz_create_path!(z::WriteZipperCore{V,A}) where {V,A}
 end
 
 # =====================================================================
+# _wz_make_parent_node! — wrap a child in a new node with a prefix key
+# =====================================================================
+#
+# Mirrors `make_parents_in` (write_zipper.rs:2415).
+# Creates a fresh LineListNode with `prefix` as the edge to `child_rc`.
+
+function _wz_make_parent_node(prefix::Vector{UInt8},
+                               child_rc::TrieNodeODRc{V,A},
+                               alloc::A) where {V,A}
+    new_node = LineListNode{V,A}(alloc)
+    result   = node_set_branch!(new_node, prefix, child_rc)
+    # node_set_branch! on a fresh empty node won't upgrade, but handle it anyway
+    result isa TrieNodeODRc ? result : TrieNodeODRc(new_node, alloc)
+end
+
+# =====================================================================
+# wz_insert_prefix! — prepend bytes to every path below the cursor
+# =====================================================================
+#
+# Mirrors WriteZipperCore::insert_prefix (write_zipper.rs:1696).
+# Wraps the focus subtrie in a new parent node keyed by `prefix`,
+# then grafts the result back at the cursor position.
+# Returns true if the focus was non-empty (operation performed).
+
+"""
+    wz_insert_prefix!(z, prefix) → Bool
+
+Prepend `prefix` bytes to every path in the subtrie at the cursor.
+E.g. cursor at `"123:"`, `insert_prefix("pet:")` → all paths become
+`"123:pet:…"`.  Returns `false` if the focus is empty.
+Mirrors `WriteZipperCore::insert_prefix`.
+"""
+function wz_insert_prefix!(z::WriteZipperCore{V,A}, prefix) where {V,A}
+    prefix_v  = collect(UInt8, prefix)
+    focus_anr = _wz_get_focus_anr(z)
+    is_none(focus_anr) && return false
+    focus_rc  = into_option(focus_anr)
+    focus_rc  === nothing && return false
+    new_parent = _wz_make_parent_node(prefix_v, focus_rc, z.alloc)
+    _wz_graft_internal!(z, new_parent)
+    true
+end
+
+# =====================================================================
+# wz_remove_prefix! — strip n bytes of prefix from paths below cursor
+# =====================================================================
+#
+# Mirrors WriteZipperCore::remove_prefix (write_zipper.rs:1708).
+# Captures the focus subtrie, ascends n bytes, then grafts the subtrie
+# at the higher position — effectively removing n bytes of path prefix
+# from every path below the original cursor position.
+# Returns true if the zipper ascended the full n bytes.
+
+"""
+    wz_remove_prefix!(z, n::Int) → Bool
+
+Strip `n` bytes of path prefix from every path in the subtrie at the
+cursor.  E.g. cursor at `":Pam"`, `remove_prefix(4)` lifts the subtrie
+up by 4 bytes.  Returns `false` if the zipper couldn't ascend `n` bytes.
+Mirrors `WriteZipperCore::remove_prefix`.
+"""
+function wz_remove_prefix!(z::WriteZipperCore{V,A}, n::Int) where {V,A}
+    downstream    = into_option(_wz_get_focus_anr(z))
+    fully_ascended = wz_ascend!(z, n)
+    _wz_graft_internal!(z, downstream)
+    fully_ascended
+end
+
+# =====================================================================
 # wz_get_val_mut / wz_get_or_set_val! — val access (Julia adaptation)
 # =====================================================================
 #
@@ -1183,5 +1252,6 @@ export wz_prune_path!, _wz_prune_path_internal!
 export wz_remove_branches!, wz_remove_unmasked_branches!
 export wz_create_path!
 export wz_get_val_mut, wz_get_or_set_val!
+export wz_insert_prefix!, wz_remove_prefix!
 export wz_join_into_take!
 export tr_get_focus_anr
