@@ -586,8 +586,9 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
         if is_child
             inner_rc = into_child(payload)
             res = node_set_branch!(child, sub_key, inner_rc)
-            return res === nothing ? SetPayloadOk{V,A}(nothing, true) :
-                                     SetPayloadUpgrade{V,A}(res)
+            # node_set_branch! returns Bool on success or TrieNodeODRc on upgrade
+            return res isa TrieNodeODRc ? SetPayloadUpgrade{V,A}(res) :
+                                          SetPayloadOk{V,A}(nothing, res)
         else
             val = into_val(payload)
             r2 = node_set_val!(child, sub_key, val)

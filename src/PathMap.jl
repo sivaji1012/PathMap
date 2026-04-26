@@ -96,6 +96,9 @@ include("pathmap/Counters.jl")
 # Policy-based algebraic operations (A.0003).
 include("pathmap/PolicyOps.jl")
 
+# PrecompileTools workload — caches hot method instances during Pkg.precompile().
+include("precompile.jl")
+
 """
     version() -> VersionNumber
 """
