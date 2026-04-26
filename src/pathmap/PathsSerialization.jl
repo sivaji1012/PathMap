@@ -21,7 +21,9 @@ const Z_FINISH      = Cint(4)
 const Z_DEFAULT_COMPRESSION = Cint(-1)
 const ZLIB_VERSION  = "1.2.11"   # version string passed to deflateInit2_
 
-# z_stream layout (x86_64 Linux, 64-bit uLong):
+# z_stream layout differs by platform (LP64 vs LLP64):
+#
+# Linux / macOS (LP64): uLong = 64-bit
 #   next_in  : Ptr{UInt8}  @  0  (8)
 #   avail_in : UInt32      @  8  (4)  + 4 pad
 #   total_in : UInt64      @ 16  (8)
@@ -37,28 +39,67 @@ const ZLIB_VERSION  = "1.2.11"   # version string passed to deflateInit2_
 #   adler    : UInt64      @ 96  (8)
 #   reserved : UInt64      @104  (8)
 #   TOTAL = 112 bytes
+#
+# Windows (LLP64): uLong = 32-bit
+#   next_in  : Ptr{UInt8}  @  0  (8)
+#   avail_in : UInt32      @  8  (4)
+#   total_in : UInt32      @ 12  (4)
+#   next_out : Ptr{UInt8}  @ 16  (8)
+#   avail_out: UInt32      @ 24  (4)
+#   total_out: UInt32      @ 28  (4)
+#   msg      : Ptr{UInt8}  @ 32  (8)
+#   state    : Ptr{Cvoid}  @ 40  (8)
+#   zalloc   : Ptr{Cvoid}  @ 48  (8)
+#   zfree    : Ptr{Cvoid}  @ 56  (8)
+#   opaque   : Ptr{Cvoid}  @ 64  (8)
+#   data_type: Int32       @ 72  (4)
+#   adler    : UInt32      @ 76  (4)
+#   reserved : UInt32      @ 80  (4)
+#   TOTAL = 84 bytes
 
-mutable struct ZStream
-    next_in   ::Ptr{UInt8}
-    avail_in  ::UInt32
-    _pad1     ::UInt32
-    total_in  ::UInt64
-    next_out  ::Ptr{UInt8}
-    avail_out ::UInt32
-    _pad2     ::UInt32
-    total_out ::UInt64
-    msg       ::Ptr{UInt8}
-    state     ::Ptr{Cvoid}
-    zalloc    ::Ptr{Cvoid}
-    zfree     ::Ptr{Cvoid}
-    opaque    ::Ptr{Cvoid}
-    data_type ::Int32
-    _pad3     ::Int32
-    adler     ::UInt64
-    reserved  ::UInt64
-    ZStream() = new(C_NULL, 0, 0, 0, C_NULL, 0, 0, 0,
-                    C_NULL, C_NULL, C_NULL, C_NULL, C_NULL,
-                    0, 0, 0, 0)
+if Sys.iswindows()
+    mutable struct ZStream
+        next_in   ::Ptr{UInt8}
+        avail_in  ::UInt32
+        total_in  ::UInt32
+        next_out  ::Ptr{UInt8}
+        avail_out ::UInt32
+        total_out ::UInt32
+        msg       ::Ptr{UInt8}
+        state     ::Ptr{Cvoid}
+        zalloc    ::Ptr{Cvoid}
+        zfree     ::Ptr{Cvoid}
+        opaque    ::Ptr{Cvoid}
+        data_type ::Int32
+        adler     ::UInt32
+        reserved  ::UInt32
+        ZStream() = new(C_NULL, 0, 0, C_NULL, 0, 0,
+                        C_NULL, C_NULL, C_NULL, C_NULL, C_NULL,
+                        0, 0, 0)
+    end
+else
+    mutable struct ZStream
+        next_in   ::Ptr{UInt8}
+        avail_in  ::UInt32
+        _pad1     ::UInt32
+        total_in  ::UInt64
+        next_out  ::Ptr{UInt8}
+        avail_out ::UInt32
+        _pad2     ::UInt32
+        total_out ::UInt64
+        msg       ::Ptr{UInt8}
+        state     ::Ptr{Cvoid}
+        zalloc    ::Ptr{Cvoid}
+        zfree     ::Ptr{Cvoid}
+        opaque    ::Ptr{Cvoid}
+        data_type ::Int32
+        _pad3     ::Int32
+        adler     ::UInt64
+        reserved  ::UInt64
+        ZStream() = new(C_NULL, 0, 0, 0, C_NULL, 0, 0, 0,
+                        C_NULL, C_NULL, C_NULL, C_NULL, C_NULL,
+                        0, 0, 0, 0)
+    end
 end
 
 # =====================================================================
