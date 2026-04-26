@@ -140,10 +140,10 @@ function act_read_node(data::AbstractVector{UInt8}, node_id::ACT_NodeId)
             base = off + pos - 1
             # Read 4×u64 LE words for the 32-byte child mask
             words = ntuple(4) do i
-                off = base + (i-1)*8
-                v = UInt64(0)
-                for j in 0:7; v |= UInt64(data[off+j]) << (j*8); end
-                v
+                word_off = base + (i-1)*8
+                w = UInt64(0)
+                for j in 0:7; w |= UInt64(data[word_off+j]) << (j*8); end
+                w
             end
             bytemask = ByteMask(words)
             pos += 32
@@ -550,7 +550,8 @@ end
 # =====================================================================
 
 function act_reset!(z::ACTZipper)
-    root, root_id = act_get_node(z.tree, z.stack[1].node_id)
+    root_id = z.stack[1].node_id   # preserve ACT_NodeId, not the size returned by act_get_node
+    root    = act_get_node(z.tree, root_id)[1]
     z.cur_node = root
     resize!(z.stack, 1)
     z.stack[1] = _ACTFrame(root, root_id)
