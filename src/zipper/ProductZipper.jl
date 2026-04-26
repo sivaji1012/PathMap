@@ -51,7 +51,9 @@ function ProductZipper(primary_z::ReadZipperCore{V,A},
             UInt8[])
         push!(secondaries, t)
     end
-    ProductZipper{V,A}(primary_z, secondaries, Int[])
+    # Upstream: factor_paths pre-allocated with Vec::with_capacity(secondaries.len())
+    fp = Int[]; sizehint!(fp, length(secondaries))
+    ProductZipper{V,A}(primary_z, secondaries, fp)
 end
 
 """

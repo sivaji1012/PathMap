@@ -518,8 +518,8 @@ Creates a DenseByteNode containing all entries from `n` and returns it as a
 new `TrieNodeODRc`. Ports the `convert_to_dense` path in upstream. Called
 when a third slot is required and the two existing slots cannot share a key.
 """
-function _convert_to_dense_stub!(n::LineListNode{V,A}, ::Int) where {V,A}
-    dense = DenseByteNode{V,A}(n.alloc, 2)
+function _convert_to_dense_stub!(n::LineListNode{V,A}, capacity::Int) where {V,A}
+    dense = DenseByteNode{V,A}(n.alloc, capacity)   # upstream: with_capacity_in(capacity, alloc)
     merge_from_list_node!(dense, n)
     TrieNodeODRc(dense, n.alloc)
 end
