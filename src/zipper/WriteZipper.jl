@@ -456,11 +456,19 @@ end
     set_val_at!(m::PathMap, path, val) -> Union{Nothing, V}
 
 Set the value at `path` in `m`.  Returns the previously stored value.
+`path` may be a `Vector{UInt8}`, `AbstractVector{UInt8}`, `AbstractString`,
+or any other byte-iterable; no intermediate copy is made.
 """
-function set_val_at!(m::PathMap{V,A}, path, val::V) where {V,A}
+function set_val_at!(m::PathMap{V,A}, path::AbstractVector{UInt8}, val::V) where {V,A}
     z = write_zipper(m)
-    wz_descend_to!(z, collect(UInt8, path))
+    wz_descend_to!(z, path)
     wz_set_val!(z, val)
+end
+function set_val_at!(m::PathMap{V,A}, path::AbstractString, val::V) where {V,A}
+    set_val_at!(m, codeunits(path), val)
+end
+function set_val_at!(m::PathMap{V,A}, path, val::V) where {V,A}
+    set_val_at!(m, collect(UInt8, path), val)
 end
 
 """
@@ -468,10 +476,16 @@ end
 
 Remove the value at `path` in `m`.  Returns the removed value.
 """
-function remove_val_at!(m::PathMap{V,A}, path, prune::Bool=false) where {V,A}
+function remove_val_at!(m::PathMap{V,A}, path::AbstractVector{UInt8}, prune::Bool=false) where {V,A}
     m.root === nothing && return nothing
-    z = write_zipper_at_path(m, collect(UInt8, path))
+    z = write_zipper_at_path(m, path)
     wz_remove_val!(z, prune)
+end
+function remove_val_at!(m::PathMap{V,A}, path::AbstractString, prune::Bool=false) where {V,A}
+    remove_val_at!(m, codeunits(path), prune)
+end
+function remove_val_at!(m::PathMap{V,A}, path, prune::Bool=false) where {V,A}
+    remove_val_at!(m, collect(UInt8, path), prune)
 end
 
 # =====================================================================

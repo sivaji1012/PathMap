@@ -51,18 +51,28 @@ end
 
 Creates a read-only zipper pre-positioned at `path`.
 """
-function read_zipper_at_path(m::PathMap{V,A}, path) where {V,A}
+function read_zipper_at_path(m::PathMap{V,A}, path::AbstractVector{UInt8}) where {V,A}
     _ensure_root!(m)
     root_rc = m.root::TrieNodeODRc{V,A}
-    path_v  = Vector{UInt8}(path)
+    path_v  = path isa Vector{UInt8} ? path : Vector{UInt8}(path)
     rv      = isempty(path_v) ? m.root_val : nothing
     ReadZipperCore_at_path(root_rc, path_v, length(path_v), 0, rv, m.alloc)
+end
+function read_zipper_at_path(m::PathMap{V,A}, path::AbstractString) where {V,A}
+    read_zipper_at_path(m, codeunits(path))
+end
+function read_zipper_at_path(m::PathMap{V,A}, path) where {V,A}
+    read_zipper_at_path(m, collect(UInt8, path))
 end
 
 # ---- high-level read API ----
 
 """
     get_val_at(m::PathMap, path) -> Union{Nothing, V}
+
+`path` may be `Vector{UInt8}`, `AbstractVector{UInt8}`, `AbstractString`, or
+any byte-iterable.  `AbstractString` and `AbstractVector` paths avoid an
+intermediate copy.
 """
 function get_val_at(m::PathMap, path)
     _ensure_root!(m)
