@@ -448,6 +448,14 @@ function make_unique!(rc::TrieNodeODRc{V,A}) where {V, A<:Allocator}
     return rc
 end
 
+# Delegating overload for join_into_dyn!: unwraps the first TrieNodeODRc.
+# DenseByteNode calls join_into_dyn!(cf.rec, node) where cf.rec::TrieNodeODRc.
+# Mirrors Rust's implicit Deref through Arc<dyn TrieNode>.
+function join_into_dyn!(rc::TrieNodeODRc{V,A}, other::TrieNodeODRc{V,A}) where {V,A}
+    rc.node === nothing && return (ALG_STATUS_IDENTITY, nothing)
+    join_into_dyn!(rc.node, other)
+end
+
 # =====================================================================
 # PayloadRef — borrowed reference to a value or child within a node
 # =====================================================================

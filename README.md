@@ -1,5 +1,9 @@
 # PathMap.jl
 
+[![CI](https://github.com/sivaji1012/PathMap/actions/workflows/ci.yml/badge.svg)](https://github.com/sivaji1012/PathMap/actions/workflows/ci.yml)
+[![Julia 1.10+](https://img.shields.io/badge/Julia-1.10%2B-blue)](https://julialang.org)
+[![v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange)](https://github.com/sivaji1012/PathMap/releases/tag/v0.3.0)
+
 A high-performance, structurally-shared, byte-keyed trie map for Julia —
 the substrate for [MORK.jl](../MORK) and the broader
 [Hyperon](https://wiki.opencog.org/w/Hyperon) ecosystem.
@@ -34,6 +38,21 @@ Pkg.develop(path = "path/to/PathMap")
 ```
 
 Requires Julia ≥ 1.10.  No external runtime dependencies beyond `Zlib_jll`.
+
+> **Note**: PathMap.jl is not yet registered in the Julia General Registry.
+> Clone the repo and use `Pkg.develop` as shown above.
+
+## Benchmarks
+
+Run the included benchmark suite:
+
+```bash
+julia --project=. benchmarks/benchmarks.jl
+```
+
+Covers construction (dense/sparse keys), word-index workload, algebraic
+operations (union/subtract/policy-sum), morphisms (cata_cached, map_hash),
+and serialization (.paths round-trip).  Pass `--tune` for longer calibration.
 
 ---
 

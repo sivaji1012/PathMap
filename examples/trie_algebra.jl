@@ -13,9 +13,14 @@
 using PathMap
 
 # PathMap-level pjoin/pmeet/psubtract return AlgebraicResult (faithful to Rust).
-# These helpers materialise the result as a concrete PathMap.
-# Union via pjoin_policy — bypasses Lattice trait, works for any V
-map_union(a, b) = pjoin_policy(a, b, TakeFirst())
+# These helpers materialise the result as a concrete PathMap for convenience.
+function map_union(a::PathMap.PathMap{V,A}, b::PathMap.PathMap{V,A}) where {V,A}
+    result = deepcopy(a)
+    b.root === nothing && return result
+    wz = write_zipper(result)
+    wz_join_map_into!(wz, b)
+    result
+end
 
 function map_subtract(a::PathMap.PathMap{V,A}, b::PathMap.PathMap{V,A}) where {V,A}
     b.root === nothing && return deepcopy(a)
