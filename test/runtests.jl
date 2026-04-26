@@ -93,10 +93,22 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
     @testset "insert_prefix / remove_prefix" begin
         m = PM{Int}()
         set_val_at!(m, b"foo:bar", 99)
+        # Cursor at "foo:" — insert_prefix prepends "ns:" within that subtrie
+        # "bar" → 99 becomes "ns:bar" → 99, full path: "foo:ns:bar"
         wz = write_zipper_at_path(m, b"foo:")
         @test wz_insert_prefix!(wz, b"ns:") == true
-        @test get_val_at(m, b"ns:foo:bar") == 99
+        @test get_val_at(m, b"foo:ns:bar") == 99
         @test get_val_at(m, b"foo:bar") === nothing
+
+        # insert_prefix at root prepends to all absolute paths
+        m2 = PM{Int}()
+        set_val_at!(m2, b"eagle", 1)
+        set_val_at!(m2, b"penguin", 2)
+        wz2 = write_zipper(m2)
+        @test wz_insert_prefix!(wz2, b"bird:") == true
+        @test get_val_at(m2, b"bird:eagle")   == 1
+        @test get_val_at(m2, b"bird:penguin") == 2
+        @test get_val_at(m2, b"eagle") === nothing
     end
 
     @testset "lazy COW — graft does not corrupt source" begin
