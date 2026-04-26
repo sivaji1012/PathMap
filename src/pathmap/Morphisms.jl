@@ -384,6 +384,196 @@ function map_hash(m::PathMap{V,A}) where {V,A}
 end
 
 # =====================================================================
+# Hybrid cached catamorphism — A.0005
+# =====================================================================
+#
+# Implements the "logical_cached_cata" design from A.0005.
+#
+# Problem: the existing cata_cached passes NO path to alg_f because
+# a full path would break cache sharing (two nodes at different paths
+# but with the same node_id would produce different W values).
+# cata_side_effect passes the full path but has NO caching.
+#
+# Solution (A.0005 option 2, not yet implemented in upstream Rust):
+#   alg_f(mask, children, val, sub_path, full_path) → (W, used_bytes::Int)
+#
+# `used_bytes` tells how many trailing bytes of `full_path` were
+# incorporated into W.  The implementation stores the path suffix of
+# that length alongside W in the cache.  On a subsequent visit to the
+# same node, the cached W is reused only if the current path suffix
+# (of `used_bytes` length) matches the stored one.
+#
+# When used_bytes == 0: path-independent, same cache behaviour as cata_cached.
+# When used_bytes == n: cache is specific to the last n bytes of the path.
+
+function _cata_hybrid_cached!(
+    z       ::ReadZipperCore{V,A},
+    alg_f   ::Function,
+    jumping ::Bool
+) where {V,A}
+    zipper_reset!(z)
+
+    stack    = _CataFrame[]
+    children = []
+    # Cache: node_id → (W, path_suffix::Vector{UInt8})
+    # suffix is empty when used_bytes == 0 (path-independent result)
+    cache    = Dict{UInt64, Tuple{Any, Vector{UInt8}}}()
+    used_ref = Ref(0)   # captures used_bytes from the most recent alg_f call
+
+    # Wrapper: strips the (W, used) return, captures used into used_ref
+    function inner_alg(mask, ch, jump_len, val, path)
+        sub_path = jumping ? view(path, max(1, length(path)-jump_len):length(path)) : UInt8[]
+        (w, used) = alg_f(mask, ch, val, collect(sub_path), path)
+        used_ref[] = used
+        w
+    end
+
+    push!(stack, _CataFrame(z))
+
+    while true
+        frame = stack[end]
+
+        if frame.child_idx < frame.child_cnt
+            zipper_descend_indexed_byte!(z, frame.child_idx)
+            frame.child_idx += 1
+            nid = zipper_shared_node_id(z)
+            frame.child_addr = nid
+
+            # Cache lookup: check if stored suffix matches current path suffix
+            if nid !== nothing && haskey(cache, nid)
+                (cached_w, stored_suffix) = cache[nid]
+                if isempty(stored_suffix)
+                    # Path-independent — always valid
+                    push!(children, cached_w)
+                    zipper_ascend_byte!(z)
+                    continue
+                else
+                    cur_path = zipper_origin_path(z)
+                    n = length(stored_suffix)
+                    if length(cur_path) >= n &&
+                       view(cur_path, length(cur_path)-n+1:length(cur_path)) == stored_suffix
+                        push!(children, cached_w)
+                        zipper_ascend_byte!(z)
+                        continue
+                    end
+                    # Suffix mismatch — fall through and recompute
+                end
+            end
+
+            # Descend to leaf or fork
+            is_leaf = false
+            while zipper_child_count(z) < 2
+                !zipper_descend_until!(z) && (is_leaf = true; break)
+            end
+
+            if is_leaf
+                used_ref[] = 0
+                cur_w = _cata_ascend_to_fork!(z, inner_alg, [], jumping)
+                if nid !== nothing
+                    used = used_ref[]
+                    suffix = used == 0 ? UInt8[] :
+                        copy(view(zipper_origin_path(z),
+                                  max(1, length(zipper_origin_path(z))-used+1):
+                                  length(zipper_origin_path(z))))
+                    cache[nid] = (cur_w, suffix)
+                end
+                push!(children, cur_w)
+                continue
+            end
+
+            push!(stack, _CataFrame(z))
+            continue
+        end
+
+        # All children of this frame processed
+        frame_idx   = length(stack)
+        sf          = pop!(stack)
+        child_start = length(children) - sf.child_cnt
+
+        if frame_idx == 1
+            @assert zipper_at_root(z)
+            val        = zipper_val(z)
+            child_mask = zipper_child_mask(z)
+            sub_ch     = children[child_start+1:end]
+            w = if jumping && sf.child_cnt == 1 && val === nothing
+                pop!(children)
+            else
+                used_ref[] = 0
+                full_path  = copy(zipper_origin_path(z))
+                (w, _used) = alg_f(child_mask, sub_ch, val, UInt8[], full_path)
+                w
+            end
+            return w
+        end
+
+        sub_ch = children[child_start+1:end]
+        used_ref[] = 0
+        cur_w = _cata_ascend_to_fork!(z, inner_alg, sub_ch, jumping)
+        resize!(children, child_start)
+
+        parent_frame = stack[end]
+        if parent_frame.child_addr !== nothing
+            nid  = parent_frame.child_addr
+            used = used_ref[]
+            suffix = used == 0 ? UInt8[] :
+                copy(view(zipper_origin_path(z),
+                          max(1, length(zipper_origin_path(z))-used+1):
+                          length(zipper_origin_path(z))))
+            cache[nid] = (cur_w, suffix)
+        end
+        push!(children, cur_w)
+    end
+end
+
+# =====================================================================
+# Public hybrid cached cata API
+# =====================================================================
+
+"""
+    cata_hybrid_cached(m::PathMap, alg_f) → W
+
+Hybrid cached catamorphism (A.0005).  Provides BOTH caching and full
+path visibility — ahead of upstream Rust which only has a debug variant.
+
+`alg_f(child_mask, children, val, sub_path, full_path) → (W, used_bytes::Int)`
+
+`used_bytes` controls cache sharing:
+- `0`  → path-independent; cached entry is valid for ANY path (fastest)
+- `n>0`→ cached entry is only reused when the last `n` bytes of the current
+         path match the path suffix when the entry was stored.
+
+Example — hash a trie where leaf symbols are path-qualified:
+```julia
+cata_hybrid_cached(m, (mask, children, val, sub, path) -> begin
+    w = hash(mask, hash(path[end:end]))   # uses only last byte
+    (w, 1)                                 # used_bytes = 1
+end)
+```
+"""
+function cata_hybrid_cached(m::PathMap{V,A}, alg_f::Function) where {V,A}
+    z = read_zipper(m)
+    _cata_hybrid_cached!(z, alg_f, false)
+end
+
+"""
+    cata_jumping_hybrid_cached(m::PathMap, alg_f) → W
+
+Jumping variant of `cata_hybrid_cached`.  Skips monotone paths between forks.
+Same closure signature: `alg_f(...) → (W, used_bytes::Int)`.
+"""
+function cata_jumping_hybrid_cached(m::PathMap{V,A}, alg_f::Function) where {V,A}
+    z = read_zipper(m)
+    _cata_hybrid_cached!(z, alg_f, true)
+end
+
+function cata_hybrid_cached(z::ReadZipperCore{V,A}, alg_f::Function) where {V,A}
+    _cata_hybrid_cached!(z, alg_f, false)
+end
+function cata_jumping_hybrid_cached(z::ReadZipperCore{V,A}, alg_f::Function) where {V,A}
+    _cata_hybrid_cached!(z, alg_f, true)
+end
+
+# =====================================================================
 # Anamorphism — build a trie from a generating function
 # =====================================================================
 #
@@ -479,6 +669,7 @@ end
 
 export cata_side_effect, cata_jumping_side_effect
 export cata_cached, cata_jumping_cached
+export cata_hybrid_cached, cata_jumping_hybrid_cached
 export ana_jumping!
 export TrieBuilder, tb_push_byte!, tb_push!, tb_len, tb_child_mask
 export tb_graft_at_byte!, tb_reset!
