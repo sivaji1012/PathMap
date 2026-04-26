@@ -1843,3 +1843,4 @@ export swap_slot0_payload!, swap_slot1_payload!
 export clone_slot0_payload, clone_slot1_payload
 export set_slot0!, set_slot1!
 export validate_list_node
+export factor_prefix!
