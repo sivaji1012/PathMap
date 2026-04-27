@@ -409,13 +409,15 @@ Create a write zipper at the root of `m`.  Mirrors `PathMap::write_zipper`.
 function write_zipper(m::PathMap{V,A}) where {V,A}
     _ensure_root!(m)
     root_rc = m.root::TrieNodeODRc{V,A}
+    # Fix 2: pre-allocate prefix_buf and prefix_idx to eliminate _growend!/memmove
+    # in wz_descend_to! hot path.  EXPECTED_PATH_LEN / EXPECTED_DEPTH from Zipper.jl.
     WriteZipperCore{V,A}(
         m,
-        0,                              # root_key_start (0-indexed)
-        UInt8[],                        # prefix_buf (empty = at origin)
-        0,                              # origin_path_len
-        Int[],                          # prefix_idx
-        TrieNodeODRc{V,A}[root_rc],    # focus_stack: [root]
+        0,                                                     # root_key_start (0-indexed)
+        sizehint!(UInt8[], EXPECTED_PATH_LEN),                 # prefix_buf pre-allocated
+        0,                                                     # origin_path_len
+        sizehint!(Int[], EXPECTED_DEPTH),                      # prefix_idx pre-allocated
+        TrieNodeODRc{V,A}[root_rc],                           # focus_stack: [root]
         m.alloc
     )
 end
@@ -435,12 +437,14 @@ function write_zipper_at_path(m::PathMap{V,A}, path) where {V,A}
     root_rc = m.root::TrieNodeODRc{V,A}
     # Build zipper with full path as prefix_buf, then descend
     # root_key_start = 0 (origin is at the absolute map root)
+    # Fix 2: pre-allocate prefix_idx; path_v already has capacity from collect.
+    length(path_v) < EXPECTED_PATH_LEN && sizehint!(path_v, EXPECTED_PATH_LEN)
     z = WriteZipperCore{V,A}(
         m,
         0,
-        path_v,                         # prefix_buf = path
-        length(path_v),                 # origin_path_len = path.len()
-        Int[],                          # prefix_idx starts empty
+        path_v,                                     # prefix_buf = path (pre-allocated)
+        length(path_v),                             # origin_path_len = path.len()
+        sizehint!(Int[], EXPECTED_DEPTH),           # prefix_idx pre-allocated
         TrieNodeODRc{V,A}[root_rc],
         m.alloc
     )

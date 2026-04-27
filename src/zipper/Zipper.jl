@@ -165,15 +165,21 @@ function ReadZipperCore(root_rc::TrieNodeODRc{V,A},
                         root_key_start_0::Int,
                         root_val::Union{Nothing,V},
                         alloc::A) where {V, A<:Allocator}
+    # Fix 2: pre-allocate prefix_buf and ancestors to avoid _growend!/memmove
+    # in the hot descent loop.  sizehint! returns the vector in Julia 1.1+.
+    _pbuf     = Vector{UInt8}(path)
+    length(_pbuf) < EXPECTED_PATH_LEN && sizehint!(_pbuf, EXPECTED_PATH_LEN)
+    _anc_type = Tuple{Union{Nothing,AbstractTrieNode{V,A}}, UInt128, Int}
+    _anc      = sizehint!(Vector{_anc_type}(), EXPECTED_DEPTH)
     ReadZipperCore{V,A}(
         root_key_start_0,
         root_val,
         root_rc,
         _rc_inner(root_rc),                         # focus_node = inner node
         NODE_ITER_INVALID,
-        Vector{UInt8}(path),
+        _pbuf,
         length(path),                               # origin_path_len
-        Tuple{Union{Nothing,AbstractTrieNode{V,A}}, UInt128, Int}[],
+        _anc,
         alloc,
     )
 end
