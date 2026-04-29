@@ -4,6 +4,7 @@ version = "0.3.0"
 authors = ["PRIMUS Team"]
 
 [deps]
+Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Zlib_jll = "83775a58-1f1d-513f-b197-d71354ab007a"
 
