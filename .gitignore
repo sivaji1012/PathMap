@@ -7,7 +7,8 @@
 *.orig
 *.ji
 
-# Julia package manager
+# Julia package manager — library packages don't commit Manifest
+/Manifest.toml
 /Manifest.toml.bak
 
 # OS
