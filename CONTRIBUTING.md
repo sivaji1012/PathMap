@@ -8,6 +8,15 @@ Pkg.develop(path = ".")
 Pkg.test("PathMap")
 ```
 
+### Install pre-commit hooks (required)
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This installs a hook that **blocks commits containing hardcoded local paths**
+(e.g. `/home/username/...`). Always activate after cloning.
+
 ## Running Tests
 
 ```bash
