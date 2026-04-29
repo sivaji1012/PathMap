@@ -12,7 +12,7 @@ Supports in-memory (Vector{UInt8}) and memory-mapped file backends.
   - first byte > 247 → nbytes = first - 247, read nbytes little-endian
 """
 
-# Mmap support: optional; use act_open for file-backed trees
+using Mmap
 
 # =====================================================================
 # Constants
@@ -421,10 +421,18 @@ end
 """
     act_open_mmap(path::AbstractString) → ArenaCompactTree
 
-Open a compact tree file (copies bytes; Mmap variant deferred).
-Mirrors `ArenaCompactTree::open_mmap` — uses file read in Julia port.
+Open a compact tree file using a memory-mapped backing array (zero-copy, read-only).
+The mapping is kept alive by the returned `ArenaCompactTree` — do not write to it.
+Mirrors `ArenaCompactTree::open_mmap` in arena_compact.rs.
 """
-act_open_mmap(path::AbstractString) = act_open(path)
+function act_open_mmap(path::AbstractString)
+    io   = open(path, "r")
+    data = Mmap.mmap(io, Vector{UInt8})   # read-only mmap; fd can be closed after
+    close(io)                              # safe on all POSIX platforms
+    @assert length(data) >= ACT_MAGIC_LEN &&
+            data[1:ACT_MAGIC_LEN] == ACT_MAGIC "Invalid ACTree magic"
+    ArenaCompactTree(data, UInt64(length(data)), Dict{UInt64,ACT_LineId}(), Ref(UInt64(0)))
+end
 
 # =====================================================================
 # ACTZipper — read-only zipper over ArenaCompactTree

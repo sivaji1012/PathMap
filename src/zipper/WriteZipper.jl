@@ -295,7 +295,9 @@ function wz_remove_val!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
     end
     _wz_ensure_write_unique!(z)
     focus_node = z.focus_stack[end].node
-    node_remove_val!(focus_node, nk, prune)
+    old_val = node_remove_val!(focus_node, nk, prune)
+    prune && old_val !== nothing && wz_prune_path!(z)
+    old_val
 end
 
 # =====================================================================
@@ -514,14 +516,13 @@ end
 # =====================================================================
 #
 # Mirrors WriteZipperCore::remove_branches (write_zipper.rs:1948).
-# prune=true path (prune_path_internal) is deferred — passing false is safe.
-
 function _wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool) where {V,A}
     _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     if !isempty(nk)
         focus_node = z.focus_stack[end].node
         removed = node_remove_all_branches!(focus_node, nk, prune)
+        removed && prune && _wz_prune_path_internal!(z)
         removed
     else
         @assert length(z.focus_stack) == 1
