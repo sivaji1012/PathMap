@@ -144,33 +144,30 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
     @testset "ArenaCompact mmap round-trip" begin
         m = PM{UInt64}()
-        set_val_at!(m, b"hello",       UInt64(42))
-        set_val_at!(m, b"world",       UInt64(99))
-        set_val_at!(m, b"hello_world", UInt64(7))
+        set_val_at!(m, b"alpha",  UInt64(42))
+        set_val_at!(m, b"beta",   UInt64(99))
+        set_val_at!(m, b"gamma",  UInt64(7))
 
         tree_vec = act_from_zipper(m, v -> v)
         tmpfile  = tempname() * ".act"
         act_save(tree_vec, tmpfile)
 
-        # act_open_mmap: mmap-backed, zero-copy read
         tree_mmap = act_open_mmap(tmpfile)
         @test tree_mmap isa ArenaCompactTree
         @test length(tree_mmap.data) == filesize(tmpfile)
         @test tree_mmap.data[1:8] == ACT_MAGIC
 
-        # value round-trip via mmap
-        @test act_get_val_at(tree_mmap, b"hello")       === UInt64(42)
-        @test act_get_val_at(tree_mmap, b"world")       === UInt64(99)
-        @test act_get_val_at(tree_mmap, b"hello_world") === UInt64(7)
-        @test act_get_val_at(tree_mmap, b"missing")     === nothing
+        @test act_get_val_at(tree_mmap, b"alpha")   === UInt64(42)
+        @test act_get_val_at(tree_mmap, b"beta")    === UInt64(99)
+        @test act_get_val_at(tree_mmap, b"gamma")   === UInt64(7)
+        @test act_get_val_at(tree_mmap, b"missing") === nothing
 
-        # mmap and copy results must agree on every key
+        # act_open_mmap and act_open must agree on all keys
         tree_copy = act_open(tmpfile)
-        for key in (b"hello", b"world", b"hello_world", b"missing")
+        for key in (b"alpha", b"beta", b"gamma", b"missing")
             @test act_get_val_at(tree_mmap, key) === act_get_val_at(tree_copy, key)
         end
 
-        # ACTZipper traversal over mmap-backed tree
         z = act_read_zipper(tree_mmap)
         @test act_val_count(z) == 3
 
