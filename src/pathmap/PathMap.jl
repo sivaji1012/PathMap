@@ -73,20 +73,30 @@ end
 `path` may be `Vector{UInt8}`, `AbstractVector{UInt8}`, `AbstractString`, or
 any byte-iterable.  `AbstractString` and `AbstractVector` paths avoid an
 intermediate copy.
+
+Fix 4: uses `node_along_path` directly — no ReadZipperCore heap allocation.
 """
-function get_val_at(m::PathMap, path)
+function get_val_at(m::PathMap{V,A}, path) where {V,A}
     _ensure_root!(m)
-    z = read_zipper_at_path(m, path)
-    zipper_val(z)
+    m.root === nothing && return m.root_val
+    path_v = path isa AbstractVector{UInt8} ? path : collect(UInt8, path)
+    isempty(path_v) && return m.root_val
+    _, remaining, val = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
+    isempty(remaining) ? val : nothing
 end
 
 """
     path_exists_at(m::PathMap, path) -> Bool
+
+Fix 4: uses `node_along_path` directly — no ReadZipperCore heap allocation.
 """
-function path_exists_at(m::PathMap, path)
+function path_exists_at(m::PathMap{V,A}, path) where {V,A}
     _ensure_root!(m)
-    z = read_zipper_at_path(m, path)
-    zipper_path_exists(z)
+    m.root === nothing && return isempty(path isa AbstractVector ? path : collect(UInt8, path)) && m.root_val !== nothing
+    path_v = path isa AbstractVector{UInt8} ? path : collect(UInt8, path)
+    isempty(path_v) && return m.root_val !== nothing
+    _, remaining, val = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
+    isempty(remaining) && val !== nothing
 end
 
 function Base.isempty(m::PathMap)
@@ -107,6 +117,7 @@ function val_count(m::PathMap{V,A}) where {V,A}
     rv = isnothing(m.root_val) ? 0 : 1
     m.root === nothing ? rv : val_count_below_root(_fnode(_rc_inner(m.root), V, A)) + rv
 end
+
 
 # =====================================================================
 # PathMap lattice ops — ports trie_map.rs Lattice/DistributiveLattice/Quantale impls
