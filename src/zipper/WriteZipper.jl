@@ -782,6 +782,84 @@ function wz_restrict!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A}) wh
 end
 
 # =====================================================================
+# wz_join_k_path_into! — drop-head / composition
+# =====================================================================
+#
+# Mirrors WriteZipperCore::join_k_path_into (write_zipper.rs:1617).
+#
+# Removes the first `byte_cnt` bytes of every path below the cursor,
+# collapsing (joining) any paths that collide as a result.
+# This is the PathMap "composition" operation — used in MorkL's OP_DROP_HEAD
+# and whenever an intermediate binding prefix needs to be erased.
+#
+# Returns true if any paths survive after dropping; false if the subtrie
+# is empty.  When prune=true and result is false, prunes the empty path.
+
+"""
+    wz_join_k_path_into!(z, byte_cnt, prune=true) -> Bool
+
+Remove the first `byte_cnt` bytes from every path below the cursor,
+joining any paths that collide.  Returns true if the subtrie is non-empty.
+Mirrors `WriteZipperCore::join_k_path_into` (write_zipper.rs:1617).
+"""
+function wz_join_k_path_into!(z::WriteZipperCore{V,A},
+                               byte_cnt::Int,
+                               prune::Bool = true) where {V,A}
+    focus_anr = _wz_get_focus_anr(z)
+    if is_none(focus_anr)
+        prune && _wz_prune_path_internal!(z)
+        return false
+    end
+    self_node = as_tagged(focus_anr)
+    new_node  = drop_head_dyn!(self_node, byte_cnt)
+    _wz_graft_internal!(z, new_node)
+    result = new_node !== nothing
+    prune && !result && _wz_prune_path_internal!(z)
+    result
+end
+
+# =====================================================================
+# wz_restricting! — stem-population (inverse restrict)
+# =====================================================================
+#
+# Mirrors WriteZipperCore::restricting (write_zipper.rs:1927).
+#
+# Where wz_restrict!(z, src) keeps paths of z that have a prefix in src,
+# wz_restricting!(z, src) fills z's existing structure with src content —
+# arguments to prestrict_dyn are reversed (src.prestrict_dyn(self)).
+# Upstream names this "GOAT" (needs better name) — it is non-commutative.
+
+"""
+    wz_restricting!(z, src_anr) -> Bool
+
+Fill z's subtrie structure using src as the domain provider —
+the inverse direction of `wz_restrict!`.
+Returns true if src was non-empty and z had content.
+Mirrors `WriteZipperCore::restricting` (write_zipper.rs:1927).
+"""
+function wz_restricting!(z::WriteZipperCore{V,A},
+                          src_anr::AbstractNodeRef{V,A}) where {V,A}
+    is_none(src_anr) && return false
+    focus_anr = _wz_get_focus_anr(z)
+    is_none(focus_anr) && return false
+
+    self_node = as_tagged(focus_anr)
+    # Key difference from wz_restrict!: arguments to prestrict_dyn are reversed
+    # Rust: src.prestrict_dyn(self_node)  vs  restrict: self_node.prestrict_dyn(src)
+    result = prestrict_dyn(as_tagged(src_anr), self_node)
+
+    if result isa AlgResElement
+        _wz_graft_internal!(z, result.value)
+    elseif result isa AlgResIdentity
+        # src unchanged (identity from src's perspective)
+        _wz_graft_internal!(z, into_option(src_anr))
+    else
+        _wz_graft_internal!(z, nothing)
+    end
+    true
+end
+
+# =====================================================================
 # Exports
 # =====================================================================
 
@@ -1261,6 +1339,7 @@ export _wz_get_focus_anr, _wz_graft_internal!, _wz_remove_branches!
 export wz_graft!, wz_graft_map!
 export wz_join_into!, wz_join_map_into!
 export wz_meet_into!, wz_subtract_into!, wz_restrict!
+export wz_join_k_path_into!, wz_restricting!
 export wz_at_root, wz_reset!
 export wz_child_mask, wz_child_count, wz_val_count
 export wz_descend_to_byte!, wz_descend_indexed_byte!
