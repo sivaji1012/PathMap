@@ -252,6 +252,82 @@ function pz_ascend_until_branch!(pz::ProductZipper)
     result
 end
 
+# =====================================================================
+# Additional navigation methods needed by coreferential DFS
+# =====================================================================
+
+"""
+    pz_descend_to_existing_byte!(pz, b) → Bool
+
+Single-byte variant of pz_descend_to_existing!.
+Returns true if the byte path exists and was descended.
+"""
+function pz_descend_to_existing_byte!(pz::ProductZipper, b::UInt8) :: Bool
+    pz_descend_to_existing!(pz, UInt8[b]) == 1
+end
+
+"""
+    pz_descend_to_check!(pz, bytes) → Bool
+
+Descend into `bytes` if the exact path exists; return true on success.
+On failure, ascend back to restore prior position.
+Mirrors behaviour of `zipper_descend_to_check!` for ProductZipper.
+"""
+function pz_descend_to_check!(pz::ProductZipper, bytes) :: Bool
+    bv = bytes isa AbstractVector{UInt8} ? bytes : collect(UInt8, bytes)
+    isempty(bv) && return true
+    n = pz_descend_to_existing!(pz, bv)
+    if n == length(bv)
+        return true
+    end
+    # Failed — ascend back the bytes we did descend
+    n > 0 && pz_ascend!(pz, n)
+    false
+end
+
+"""
+    pz_descend_first_k_path!(pz, k) → Bool
+
+Descend to the first path exactly `k` bytes below the current focus.
+Delegates to the primary zipper (factor transitions handled by existing pz logic).
+Mirrors `zipper_descend_first_k_path!` for ProductZipper.
+"""
+function pz_descend_first_k_path!(pz::ProductZipper, k::Int) :: Bool
+    base_idx = length(pz_path(pz))
+    _pz_k_path_internal!(pz, k, base_idx)
+end
+
+"""
+    pz_to_next_k_path!(pz, k) → Bool
+
+Move to the next path at the same depth (k steps from the common root).
+Mirrors `zipper_to_next_k_path!` for ProductZipper.
+"""
+function pz_to_next_k_path!(pz::ProductZipper, k::Int) :: Bool
+    base_idx = length(pz_path(pz)) - k
+    _pz_k_path_internal!(pz, k, base_idx)
+end
+
+function _pz_k_path_internal!(pz::ProductZipper, k::Int, base_idx::Int) :: Bool
+    # Direct port of _zipper_k_path_internal! (Zipper.jl) using pz_* methods.
+    while true
+        if length(pz_path(pz)) < base_idx + k
+            while pz_descend_first_byte!(pz)
+                length(pz_path(pz)) == base_idx + k && return true
+            end
+        end
+        if pz_to_next_sibling_byte!(pz)
+            length(pz_path(pz)) == base_idx + k && return true
+            continue
+        end
+        while length(pz_path(pz)) > base_idx
+            pz_ascend_byte!(pz)
+            length(pz_path(pz)) == base_idx && return false
+            pz_to_next_sibling_byte!(pz) && break
+        end
+    end
+end
+
 # ZipperIteration — use default DFS impl (same as OverlayZipper)
 function pz_to_next_val!(pz::ProductZipper)
     loop_count = 0
@@ -287,3 +363,5 @@ export pz_reset!, pz_descend_to!, pz_descend_to_byte!, pz_descend_indexed_byte!
 export pz_descend_first_byte!, pz_descend_until!, pz_descend_to_existing!
 export pz_ascend!, pz_ascend_byte!, pz_ascend_until!, pz_ascend_until_branch!
 export pz_to_next_sibling_byte!, pz_to_prev_sibling_byte!, pz_to_next_val!
+export pz_descend_to_existing_byte!, pz_descend_to_check!
+export pz_descend_first_k_path!, pz_to_next_k_path!
