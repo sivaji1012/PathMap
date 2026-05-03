@@ -71,32 +71,52 @@ end
     get_val_at(m::PathMap, path) -> Union{Nothing, V}
 
 `path` may be `Vector{UInt8}`, `AbstractVector{UInt8}`, `AbstractString`, or
-any byte-iterable.  `AbstractString` and `AbstractVector` paths avoid an
-intermediate copy.
+any byte-iterable.
 
-Fix 4: uses `node_along_path` directly — no ReadZipperCore heap allocation.
+Two-phase lookup (Fix 4 corrected):
+  Phase 1: node_along_path — fast child-traversal, zero heap allocation.
+           Handles paths that terminate at a child edge boundary.
+  Phase 2: node_get_val fallback — handles leaf values stored directly in
+           a node's value slot (node_get_child returns nothing for these).
+           node_get_child only returns child-slot entries; value-slot entries
+           are invisible to node_along_path without this fallback.
 """
 function get_val_at(m::PathMap{V,A}, path) where {V,A}
     _ensure_root!(m)
     m.root === nothing && return m.root_val
     path_v = path isa AbstractVector{UInt8} ? path : collect(UInt8, path)
     isempty(path_v) && return m.root_val
-    _, remaining, val = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
-    isempty(remaining) ? val : nothing
+    last_rc, remaining, val = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
+    isempty(remaining) && return val
+    # Phase 2: node_along_path stalled because remaining matches a value slot,
+    # not a child slot. Try node_get_val on the stalled node.
+    inner = _fnode(_rc_inner(last_rc), V, A)
+    node_get_val(inner, collect(UInt8, remaining))
 end
 
 """
     path_exists_at(m::PathMap, path) -> Bool
 
-Fix 4: uses `node_along_path` directly — no ReadZipperCore heap allocation.
+Returns true if the path structurally exists in the trie (with OR without a value).
+Dangling paths (empty child nodes, no value) also return true — they are valid
+structural paths created by wz_create_path!.
+
+Two-phase:
+  Phase 1: node_along_path consumed all bytes → path exists (dangling or valued).
+  Phase 2: node_along_path stalled → check if remaining matches a value slot.
 """
 function path_exists_at(m::PathMap{V,A}, path) where {V,A}
     _ensure_root!(m)
-    m.root === nothing && return isempty(path isa AbstractVector ? path : collect(UInt8, path)) && m.root_val !== nothing
     path_v = path isa AbstractVector{UInt8} ? path : collect(UInt8, path)
+    m.root === nothing && return isempty(path_v) && m.root_val !== nothing
     isempty(path_v) && return m.root_val !== nothing
-    _, remaining, val = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
-    isempty(remaining) && val !== nothing
+    last_rc, remaining, _ = node_along_path(m.root::TrieNodeODRc{V,A}, path_v, m.root_val)
+    # Empty remaining: node_along_path consumed all bytes → path structurally exists
+    # (val may be nothing for dangling paths — still a valid trie path)
+    isempty(remaining) && return true
+    # Non-empty remaining: node_along_path stalled at a value slot — check Phase 2
+    inner = _fnode(_rc_inner(last_rc), V, A)
+    node_get_val(inner, collect(UInt8, remaining)) !== nothing
 end
 
 function Base.isempty(m::PathMap)

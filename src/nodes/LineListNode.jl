@@ -724,18 +724,19 @@ function node_contains_partial_key(n::LineListNode, key::AbstractVector{UInt8})
 end
 
 function node_get_child(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+    # Mirrors upstream node_get_child: returns child even if empty (dangling).
+    # Empty (dangling) children represent structural path bookmarks created by
+    # wz_create_path! — they must be traversable for path_exists_at to work.
     if is_child_0(n)
         klen = key_len_0(n)
         if length(key) >= klen && key[1:klen] == n.key0
-            child_rc = into_child(n.slot0)
-            is_empty_node(child_rc) || return (klen, child_rc)
+            return (klen, into_child(n.slot0))
         end
     end
     if is_child_1(n)
         klen = key_len_1(n)
         if length(key) >= klen && key[1:klen] == n.key1
-            child_rc = into_child(n.slot1)
-            is_empty_node(child_rc) || return (klen, child_rc)
+            return (klen, into_child(n.slot1))
         end
     end
     nothing
