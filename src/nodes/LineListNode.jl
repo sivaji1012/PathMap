@@ -4,8 +4,7 @@ LineListNode — port of `pathmap/src/line_list_node.rs`.
 A compact 2-slot trie node storing up to two (key, value-or-child) pairs.
 Total key bytes across both slots is bounded by KEY_BYTES_CNT (14, non-slim_ptrs).
 When a key exceeds available space, continuation nodes are created.
-When a third entry is required, the node upgrades to a DenseByteNode (upgrade path
-currently stubbed — will be wired when DenseByteNode is ported).
+When a third entry is required, the node upgrades to a DenseByteNode.
 
 Slot ordering invariants (maintained by all mutating methods):
   - slot0 key ≤ slot1 key (byte-lexicographic)
@@ -518,7 +517,7 @@ Creates a DenseByteNode containing all entries from `n` and returns it as a
 new `TrieNodeODRc`. Ports the `convert_to_dense` path in upstream. Called
 when a third slot is required and the two existing slots cannot share a key.
 """
-function _convert_to_dense_stub!(n::LineListNode{V,A}, capacity::Int) where {V,A}
+function _convert_to_dense!(n::LineListNode{V,A}, capacity::Int) where {V,A}
     dense = DenseByteNode{V,A}(n.alloc, capacity)   # upstream: with_capacity_in(capacity, alloc)
     merge_from_list_node!(dense, n)
     TrieNodeODRc(dense, n.alloc)
@@ -683,7 +682,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
     # Both slots full and no useful overlap → upgrade to DenseByteNode.
     # The upgrade node must include the NEW (key, payload) entry, mirroring
     # Rust's set_payload_abstract upgrade block (line_list_node.rs:1013-1040).
-    dense_rc   = _convert_to_dense_stub!(n, 3)
+    dense_rc   = _convert_to_dense!(n, 3)
     dense_node = as_tagged(dense_rc)::DenseByteNode{V,A}
     k0 = key[1]
     if length(key) > 1
@@ -1830,7 +1829,7 @@ end
 node_tag(::LineListNode) = LINE_LIST_NODE_TAG
 
 function convert_to_cell_node!(n::LineListNode{V,A}) where {V,A}
-    _convert_to_dense_stub!(n, 3)
+    _convert_to_dense!(n, 3)
 end
 
 # =====================================================================
