@@ -201,4 +201,69 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test get_val_at(m, b"bar")   === 30
     end
 
+    @testset "wz_subtract_into! with prune=true removes dangling paths" begin
+        # a = {abc→1, abd→2, xyz→3}; b = {abc→1, abd→2}
+        # subtract with prune: a-b = {xyz→3}, "ab" prefix branch pruned
+        a = PM{Int}()
+        set_val_at!(a, b"abc", 1)
+        set_val_at!(a, b"abd", 2)
+        set_val_at!(a, b"xyz", 3)
+
+        b = PM{Int}()
+        set_val_at!(b, b"abc", 1)
+        set_val_at!(b, b"abd", 2)
+
+        result = deepcopy(a)
+        wz = write_zipper(result)
+        src_anr = b.root === nothing ? ANRNone{Int, GlobalAlloc}() :
+                  ANRBorrowedRc{Int, GlobalAlloc}(b.root)
+        status = wz_subtract_into!(wz, src_anr, true)
+
+        @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_NONE
+        @test get_val_at(result, b"abc") === nothing
+        @test get_val_at(result, b"abd") === nothing
+        @test get_val_at(result, b"xyz") === 3
+        @test val_count(result) == 1
+    end
+
+    @testset "wz_meet_into! with prune=true removes dangling paths" begin
+        # a = {abc→true, xyz→true}; b = {xyz→true}
+        # meet: intersection = {xyz→true}, "abc" branch pruned
+        a = PM{Bool}()
+        set_val_at!(a, b"abc", true)
+        set_val_at!(a, b"xyz", true)
+
+        b = PM{Bool}()
+        set_val_at!(b, b"xyz", true)
+
+        result = deepcopy(a)
+        wz = write_zipper(result)
+        src_anr = b.root === nothing ? ANRNone{Bool, GlobalAlloc}() :
+                  ANRBorrowedRc{Bool, GlobalAlloc}(b.root)
+        status = wz_meet_into!(wz, src_anr, true)
+
+        @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_IDENTITY
+        @test get_val_at(result, b"abc") === nothing
+        @test get_val_at(result, b"xyz") === true
+        @test val_count(result) == 1
+    end
+
+    @testset "wz_meet_into! prune=true on empty src clears entire subtrie" begin
+        # meeting with empty src → result is empty, prune removes branch
+        a = PM{Bool}()
+        set_val_at!(a, b"prefix:foo", true)
+        set_val_at!(a, b"prefix:bar", true)
+        set_val_at!(a, b"other",      true)
+
+        result = deepcopy(a)
+        wz = write_zipper_at_path(result, b"prefix:")
+        empty_anr = ANRNone{Bool, GlobalAlloc}()
+        wz_meet_into!(wz, empty_anr, true)
+
+        @test get_val_at(result, b"prefix:foo") === nothing
+        @test get_val_at(result, b"prefix:bar") === nothing
+        @test get_val_at(result, b"other") === true
+        @test val_count(result) == 1
+    end
+
 end

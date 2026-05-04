@@ -687,7 +687,8 @@ end
     wz_meet_into!(z, src_anr, prune=false) -> AlgebraicStatus
 
 Meet (lattice-inf) self's subtrie with `src_anr`. Result written to self.
-`prune=true` removes empty dangling ancestor paths (not yet implemented).
+`prune=true` removes empty dangling ancestor paths after the operation.
+Mirrors `WriteZipperCore::meet_into` (write_zipper.rs:1718).
 """
 function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
                        prune::Bool=false) where {V,A}
@@ -697,6 +698,7 @@ function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
     end
     if is_none(src_anr)
         _wz_graft_internal!(z, nothing)
+        prune && wz_prune_path!(z)
         return ALG_STATUS_NONE
     end
     self_node = as_tagged(focus_anr)
@@ -709,6 +711,7 @@ function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
             (_wz_graft_internal!(z, into_option(src_anr)); ALG_STATUS_ELEMENT)
     else
         _wz_graft_internal!(z, nothing)
+        prune && wz_prune_path!(z)
         ALG_STATUS_NONE
     end
 end
@@ -723,7 +726,8 @@ end
     wz_subtract_into!(z, src_anr, prune=false) -> AlgebraicStatus
 
 Subtract `src_anr` from self's subtrie. Result written to self.
-`prune=true` removes empty dangling paths (not yet implemented).
+`prune=true` removes empty dangling paths after the operation.
+Mirrors `WriteZipperCore::subtract_into` (write_zipper.rs:1829).
 """
 function wz_subtract_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
                             prune::Bool=false) where {V,A}
@@ -744,6 +748,7 @@ function wz_subtract_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A
         ALG_STATUS_IDENTITY   # subtract is non-commutative → only SELF_IDENT possible
     else
         _wz_graft_internal!(z, nothing)
+        prune && wz_prune_path!(z)
         ALG_STATUS_NONE
     end
 end
