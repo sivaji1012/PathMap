@@ -688,6 +688,12 @@ end
 
 Meet (lattice-inf) self's subtrie with `src_anr`. Result written to self.
 `prune=true` removes empty dangling ancestor paths after the operation.
+
+**Shared-node short-circuit**: when both sides point to the same trie node
+(identical `objectid`), A ∩ A = A — returns `ALG_STATUS_IDENTITY` immediately
+without any DFS traversal. Mirrors upstream PathMap commit `ade1e1b`
+("short-circuit on shared subtries") in `experimental/zipper_algebra.rs`.
+
 Mirrors `WriteZipperCore::meet_into` (write_zipper.rs:1718).
 """
 function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
@@ -701,6 +707,8 @@ function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
         prune && wz_prune_path!(z)
         return ALG_STATUS_NONE
     end
+    # Shared-node short-circuit: A ∩ A = A (identity — self unchanged).
+    _check_anr_sharing(focus_anr, src_anr) && return ALG_STATUS_IDENTITY
     self_node = as_tagged(focus_anr)
     result = pmeet_dyn(self_node, as_tagged(src_anr))
     if result isa AlgResElement
@@ -727,6 +735,12 @@ end
 
 Subtract `src_anr` from self's subtrie. Result written to self.
 `prune=true` removes empty dangling paths after the operation.
+
+**Shared-node short-circuit**: when both sides point to the same trie node
+(identical `objectid`), A − A = ∅ — grafts nothing and returns `ALG_STATUS_NONE`
+immediately without any DFS traversal. Mirrors upstream PathMap commit `ade1e1b`
+("short-circuit on shared subtries") in `experimental/zipper_algebra.rs`.
+
 Mirrors `WriteZipperCore::subtract_into` (write_zipper.rs:1829).
 """
 function wz_subtract_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
@@ -737,6 +751,12 @@ function wz_subtract_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A
         return self_empty ? ALG_STATUS_NONE : ALG_STATUS_IDENTITY
     end
     if self_empty
+        return ALG_STATUS_NONE
+    end
+    # Shared-node short-circuit: A − A = ∅ (subtract set from itself = empty).
+    if _check_anr_sharing(focus_anr, src_anr)
+        _wz_graft_internal!(z, nothing)
+        prune && wz_prune_path!(z)
         return ALG_STATUS_NONE
     end
     self_node = as_tagged(focus_anr)

@@ -426,6 +426,7 @@ Returns the inner node (= `TaggedNodeRef`). Mirrors `as_tagged`.
     shared_node_id(rc::TrieNodeODRc) -> UInt64
 
 Returns a stable identity for the pointed-to node (using `objectid`).
+Returns `UInt64(0)` for the empty sentinel.
 Mirrors `Arc::as_ptr as u64`.
 """
 shared_node_id(rc::TrieNodeODRc) =
@@ -624,6 +625,65 @@ end
 
 struct ANROwnedRc{V, A<:Allocator} <: AbstractNodeRef{V,A}
     rc::TrieNodeODRc{V,A}
+end
+
+# =====================================================================
+# anr_shared_id / _check_anr_sharing — shared-node identity for AbstractNodeRef
+# =====================================================================
+#
+# Upstream context: PathMap experimental/zipper_algebra.rs, commit ade1e1b
+# ("zipper_algebra: short-circuit on shared subtries").
+#
+# `ZipperConcrete::shared_node_id()` returns `Option<u64>` in Rust —
+# `Some(ptr)` when the zipper's focus has a stable pointer identity, `None`
+# otherwise.  In Julia, `ANRBorrowedRc` / `ANROwnedRc` carry a `TrieNodeODRc`
+# whose `objectid` is the stable identity.  Dynamic and tiny refs don't expose
+# one.
+
+"""
+    anr_shared_id(r::AbstractNodeRef) -> Union{Nothing, UInt64}
+
+Return a stable pointer identity for the trie node referenced by `r`, or
+`nothing` if `r` does not carry a GC-stable node pointer.
+
+- `ANRBorrowedRc` / `ANROwnedRc` → `objectid(rc.node)` (non-zero when non-empty)
+- `ANRNone` / `ANRBorrowedDyn` / `ANRBorrowedTiny` → `nothing`
+
+Mirrors `ZipperConcrete::shared_node_id()` (upstream PathMap, commit ade1e1b).
+Used by `_check_anr_sharing` to enable the shared-node short-circuit in
+`wz_meet_into!` and `wz_subtract_into!`.
+"""
+anr_shared_id(::ANRNone)         = nothing
+anr_shared_id(::ANRBorrowedDyn)  = nothing
+anr_shared_id(::ANRBorrowedTiny) = nothing
+function anr_shared_id(r::ANRBorrowedRc{V,A}) where {V,A}
+    id = shared_node_id(r.rc)
+    id == UInt64(0) ? nothing : id
+end
+function anr_shared_id(r::ANROwnedRc{V,A}) where {V,A}
+    id = shared_node_id(r.rc)
+    id == UInt64(0) ? nothing : id
+end
+
+"""
+    _check_anr_sharing(a, b) -> Bool
+
+Return `true` iff both `AbstractNodeRef` values point to the **same** underlying
+trie node (identical `objectid`).
+
+This is the guard for the shared-node short-circuit:
+- `wz_meet_into!`    : A ∩ A = A  → returns `ALG_STATUS_IDENTITY` immediately
+- `wz_subtract_into!`: A − A = ∅  → grafts nothing, returns `ALG_STATUS_NONE`
+
+Mirrors `check_sharing` in upstream PathMap `experimental/zipper_algebra.rs`
+(commit ade1e1b: "short-circuit on shared subtries (entry + post-descend)").
+"""
+@inline function _check_anr_sharing(a::AbstractNodeRef{V,A},
+                                    b::AbstractNodeRef{V,A}) where {V,A}
+    aid = anr_shared_id(a)
+    aid === nothing && return false
+    bid = anr_shared_id(b)
+    bid !== nothing && aid == bid
 end
 
 # Mirror upstream's is_none / borrow / into_option / as_tagged
@@ -958,6 +1018,7 @@ export clone_self, node_tag, convert_to_cell_node!
 
 export TrieNodeODRc
 export refcount, ptr_eq, is_empty_node, as_tagged, shared_node_id, make_unique!
+export anr_shared_id, _check_anr_sharing
 
 export PayloadRef, is_none, is_val, is_child, get_val, get_child
 export ValOrChild, into_val, into_child
