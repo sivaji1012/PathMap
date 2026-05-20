@@ -93,10 +93,16 @@ end
 """
     _wm_all_share(zs, active) -> Bool
 
-Return `true` iff all active input zippers point to the same trie node.
-Mirrors `all_active_share` in upstream zipper_merge_n_mono.
+Return `true` iff **all** active input zippers (≥ 2) point to the same trie
+node.  Returns `false` when fewer than 2 zippers are active, since a single
+zipper trivially "shares with itself" — firing `on_id!` in that case would
+produce incorrect results for `SubtractP` (it would drop the base set instead
+of copying it).
+
+Mirrors `all_active_share` in upstream `zipper_merge_n_mono`.
 """
 function _wm_all_share(zs::AbstractVector{<:WriteZipperCore}, active::UInt64)
+    count_ones(active) < 2 && return false   # need ≥ 2 to meaningfully share
     first_id = nothing
     for i in 0:length(zs)-1
         (active >> i) & 1 == 0 && continue
