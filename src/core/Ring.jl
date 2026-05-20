@@ -911,4 +911,12 @@ const UNIT_VAL = UnitVal()
 Base.:(==)(::UnitVal, ::UnitVal) = true
 Base.hash(::UnitVal, h::UInt)    = hash(:UnitVal, h)
 
+# Lattice impls for UnitVal — mirrors Rust `impl Lattice for ()`.
+# UnitVal ∨ UnitVal = UnitVal (identity on both sides).
+# UnitVal ∧ UnitVal = UnitVal (identity on both sides).
+# UnitVal − UnitVal = ∅ (unit minus itself = nothing).
+pjoin(::UnitVal, ::UnitVal)     = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
+pmeet(::UnitVal, ::UnitVal)     = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
+psubtract(::UnitVal, ::UnitVal) = AlgResNone()
+
 export UnitVal, UNIT_VAL

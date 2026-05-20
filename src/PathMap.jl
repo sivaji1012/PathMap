@@ -96,6 +96,10 @@ include("pathmap/Counters.jl")
 # Policy-based algebraic operations (A.0003).
 include("pathmap/PolicyOps.jl")
 
+# Experimental N-ary zipper merge (zipper_n_join/meet/subtract).
+# Ports upstream PathMap src/experimental/zipper_algebra.rs (PR #35).
+include("experimental/ZipperAlgebra.jl")
+
 # PrecompileTools workload — caches hot method instances during Pkg.precompile().
 include("precompile.jl")
 
