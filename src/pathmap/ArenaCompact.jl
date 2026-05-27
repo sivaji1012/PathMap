@@ -420,15 +420,28 @@ end
 """
     act_open_mmap(path::AbstractString) → ArenaCompactTree
 
-Open a compact tree file for read-only access.
-Mirrors `ArenaCompactTree::open_mmap` in arena_compact.rs.
+Open a compact tree file for **read-only** access via a true OS memory map.
+Mirrors `ArenaCompactTree<Mmap>::open_mmap` in arena_compact.rs (which backs the
+trie with `memmap2::Mmap`).
 
-Currently uses a memory copy (same as `act_open`). True OS-level mmap
-is deferred until Julia's stdlib dependency handling stabilises — Mmap
-is always available as a bundled stdlib but requiring it in [deps]
-causes resolver failures with unregistered git dependencies.
+The backing `data` is a lazy `Mmap.mmap` of the file: the OS pages bytes in on
+access, so the full file is **not** read into RAM — only the touched
+pages (faulted in by `act_get_node`/`act_get_line` as a query descends).
+This is the "space too large to fit in memory → access as needed" path.
+
+The map is read-only (file opened `"r"`); only the read helpers may be used —
+the write helpers (`act_push_node!` etc.) assume an owned `Vector{UInt8}` and
+must not be called on an mmap-backed tree.  The mapping survives the fd `close`
+(POSIX: `mmap` holds its own reference); the returned array's finalizer unmaps.
 """
-act_open_mmap(path::AbstractString) = act_open(path)
+function act_open_mmap(path::AbstractString)
+    io = open(path, "r")
+    data = Mmap.mmap(io, Vector{UInt8})   # lazy, read-only; OS faults pages on access
+    close(io)
+    @assert data[1:ACT_MAGIC_LEN] == ACT_MAGIC "Invalid ACTree magic"
+    ArenaCompactTree(data, UInt64(length(data)),
+                     Dict{UInt64,ACT_LineId}(), Ref(UInt64(0)))
+end
 
 # =====================================================================
 # ACTZipper — read-only zipper over ArenaCompactTree

@@ -2,6 +2,8 @@
 # Upstream reference: ~/JuliaAGI/dev-zone/PathMap
 module PathMap
 
+using Mmap   # real OS memory-mapping for read-only .act backing (act_open_mmap)
+
 # ── Core algebraic primitives ─────────────────────────────────────────────────
 
 # Allocator shim (`Allocator` + `GlobalAlloc`). Ports pathmap/src/alloc.rs.
