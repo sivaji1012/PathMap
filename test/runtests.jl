@@ -266,4 +266,42 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test val_count(result) == 1
     end
 
+    @testset "anchored ProductZipper(m, prefix, n) == root ProductZipper on equivalent data" begin
+        # Regression for the prefix-anchored multi-factor query path.
+        # The anchored constructor must produce IDENTICAL Cartesian-product
+        # iteration to a root ProductZipper over the same leaves — for BOTH
+        # branching prefixes (node boundary) and single-path prefixes
+        # (mid-compressed-edge, which the naive tr_get_focus_rc path dropped).
+        drive(prz) = begin
+            out = String[]
+            while pz_to_next_val!(prz)
+                push!(out, String(copy(collect(pz_path(prz)))))
+            end
+            sort!(out)
+        end
+        root_pz(m, n)        = ProductZipper(read_zipper(m),
+                                             [read_zipper(m) for _ in 2:n])
+        anchored_pz(m, p, n) = ProductZipper(m, Vector{UInt8}(p), n)
+
+        # (1) branching prefix: {foo,bar} under "a/"  vs  flat {foo,bar}
+        flatAB = PM{UnitVal}()
+        set_val_at!(flatAB, b"foo", UNIT_VAL); set_val_at!(flatAB, b"bar", UNIT_VAL)
+        preAB = PM{UnitVal}()
+        set_val_at!(preAB, b"a/foo", UNIT_VAL); set_val_at!(preAB, b"a/bar", UNIT_VAL)
+        @test drive(anchored_pz(preAB, "a/", 2)) == drive(root_pz(flatAB, 2))
+        # and no result carries the raw prefix byte 'a'
+        @test !any(s -> !isempty(s) && codeunits(s)[1] == UInt8('a'),
+                   drive(anchored_pz(preAB, "a/", 2)))
+
+        # (2) single-path prefix: {foo} under "b/" vs flat {foo}
+        #     (mid-compressed-edge — the case that returned empty pre-fix)
+        flatC = PM{UnitVal}(); set_val_at!(flatC, b"foo", UNIT_VAL)
+        preC  = PM{UnitVal}(); set_val_at!(preC,  b"b/foo", UNIT_VAL)
+        @test drive(anchored_pz(preC, "b/", 2)) == drive(root_pz(flatC, 2))
+        @test !isempty(drive(anchored_pz(preC, "b/", 2)))   # not silently empty
+
+        # (3) absent prefix region → no matches
+        @test isempty(drive(anchored_pz(preAB, "zzz/", 2)))
+    end
+
 end

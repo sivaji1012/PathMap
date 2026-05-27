@@ -67,6 +67,61 @@ function ProductZipper(primary_z::ReadZipperCore{V,A}) where {V,A}
     ProductZipper{V,A}(primary_z, TrieRefBorrowed{V,A}[], Int[])
 end
 
+"""
+    ProductZipper(m::PathMap, prefix, n_factors) → ProductZipper
+
+Anchored constructor: build an `n_factors`-way Cartesian-product zipper whose
+factors all traverse the **subtrie rooted at `prefix`** in `m`, rather than
+the whole trie.
+
+Why this exists (vs. `ProductZipper(read_zipper_at_path(m, prefix), …)`):
+`read_zipper_at_path` records the prefix only as a *cursor position*; its
+`root_node` stays the trie root.  The base `ProductZipper` constructor then
+re-roots each secondary from `root_node` and resets the primary to its
+origin — both of which discard the prefix anchor.  The result traverses the
+whole trie and `pz_path` carries the raw prefix bytes (which then crash
+expression decoders that expect tag bytes).
+
+This constructor instead resolves the prefix to its actual subtrie-root node
+via `trie_ref_at_path` + `into_option(tr_get_focus_anr(...))`, wraps that node
+as a fresh `PathMap` root, and builds every factor with `read_zipper` over it.
+Each factor zipper therefore has `origin = 0` relative to the prefix node, so
+`pz_path` is anchor-relative (no prefix bytes) and traversal is O(subtrie) —
+a true prefix-scoped view, no copy.
+
+`tr_get_focus_anr` (not `tr_get_focus_rc`) is used deliberately: when `prefix`
+lands *inside* a compressed edge — e.g. a single atom `b/foo` path-compresses
+`b/foo` into one edge with no node boundary at `b/` — `tr_get_focus_rc`
+returns `nothing` (no child exactly at the prefix), which would wrongly look
+like an empty region.  `get_node_at_key` (reached via `tr_get_focus_anr`)
+instead peels the consumed prefix off the compressed key and returns a node
+for the remaining subtrie (`ANRBorrowedTiny`); `into_option` materializes it
+as a clean root rc via a shallow node clone (children stay shared — still a
+view, not an O(subtrie) copy).  Resolving to a clean root up front also keeps
+the ProductZipper's own factor-enrollment (which uses `tr_get_focus_rc`)
+correct, since it then operates on a node-boundary root, never mid-edge.
+
+An empty / absent prefix region yields a ProductZipper over an empty trie
+(iteration produces nothing), matching the "no matches under this prefix"
+semantics callers expect.
+"""
+function ProductZipper(m::PathMap{V,A}, prefix::AbstractVector{UInt8},
+                       n_factors::Int) where {V,A}
+    n_factors >= 1 || throw(ArgumentError("n_factors must be >= 1"))
+    _ensure_root!(m)
+    tr  = trie_ref_at_path(m, prefix)
+    rc  = _tr_is_valid(tr) ? into_option(tr_get_focus_anr(tr)) : nothing
+    sub = if rc === nothing
+        e = PathMap{V,A}(m.alloc); _ensure_root!(e); e        # empty region
+    else
+        PathMap{V,A}(rc, nothing, m.alloc)                    # root AT prefix node
+    end
+    primary = read_zipper(sub)
+    n_factors == 1 && return ProductZipper(primary)
+    secondaries = ReadZipperCore{V,A}[read_zipper(sub) for _ in 2:n_factors]
+    ProductZipper(primary, secondaries)
+end
+
 # =====================================================================
 # Internal helpers
 # =====================================================================
