@@ -502,6 +502,14 @@ function act_read_zipper_at_path(tree::ArenaCompactTree, path)
     act_zipper_with_root_here!(z)
 end
 
+# Adapter: extend the canonical `read_zipper_at_path` to dispatch on
+# ArenaCompactTree, so callers can pass either an in-RAM PathMap or a mmap'd
+# ACT trie and get a polymorphic zipper back. All other `zipper_*` operations
+# (descend / to_next_val! / path / child_mask / val …) already dispatch on
+# ACTZipper via the methods below, so any zipper-algebra code becomes
+# transparently mmap-capable. Mirrors upstream's `ACTZipper: impl Zipper`.
+read_zipper_at_path(tree::ArenaCompactTree, path) = act_read_zipper_at_path(tree, path)
+
 # =====================================================================
 # ACTZipper — Zipper interface
 # =====================================================================
