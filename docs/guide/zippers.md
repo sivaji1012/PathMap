@@ -253,6 +253,44 @@ ez = EmptyZipper{Int, GlobalAlloc}()
 
 ---
 
+## Trie-Format Polymorphism — One API, Two Backends
+
+The `zipper_*` family dispatches on the **zipper** type, not on the trie
+backend.  In practice this means the same read-side query code runs
+unchanged on either of:
+
+- an in-RAM `PathMap{V}` (mutable; full read/write API), or
+- a memory-mapped `ArenaCompactTree` (read-only; zero-copy from disk).
+
+`read_zipper_at_path` is overloaded for both:
+
+```julia
+# In-RAM trie
+m = PathMap{Int}()
+set_val_at!(m, b"users:alice", 1)
+rz1 = read_zipper_at_path(m, b"users:")
+
+# Mmap'd ACT — exact same call shape
+tree = act_open_mmap("data.act")
+rz2  = read_zipper_at_path(tree, b"users:")
+```
+
+Both return zippers that respond to the full read-side family —
+`zipper_to_next_val!`, `zipper_path`, `zipper_val`, `zipper_descend_to!`,
+`zipper_child_mask`, `zipper_child_count`, `zipper_at_root`, etc.  The
+dispatch lives in [src/pathmap/ArenaCompact.jl](../../src/pathmap/ArenaCompact.jl):
+20+ `zipper_*` methods are specialised on `ACTZipper`, and the
+top-level `read_zipper_at_path(::ArenaCompactTree, path)` adapter
+makes the construction call polymorphic.
+
+**Why this matters.**  Large read-mostly datasets can be snapshotted to
+`.act` once and cold-opened sub-millisecond in every subsequent run,
+with the in-RAM trie garbage-collected away — without changing any
+query code.  See [guide/serialization.md](serialization.md) for the
+load-once / mmap-forever workflow.
+
+---
+
 ## ZipperHead — Safe Multi-Zipper Access
 
 `ZipperHead` coordinates multiple zippers on the same `PathMap`,
