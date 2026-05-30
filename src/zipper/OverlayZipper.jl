@@ -82,8 +82,22 @@ oz_child_count(oz::OverlayZipper) = count_bits(oz_child_mask(oz))
 """Path — both zippers are kept in sync so A's path is canonical."""
 oz_path(oz::OverlayZipper) = zipper_path(oz.a)
 
-"""val_count is unimplemented upstream (todo!()). Returns 0."""
-oz_val_count(::OverlayZipper) = 0
+"""
+    oz_val_count(oz) → Int
+
+Count vals reachable from the cursor in the **union** of the two underlying
+subtries (A wins at overlapping keys). Upstream's `OverlayZipper::val_count`
+is `todo!()`; PRIMUS substrate ledger lists this as deferred. There are no
+in-tree callers today.
+
+The previous implementation silently returned 0 — a silent-zero footgun for
+any future caller using val_count to size or check emptiness. This warns
+once-per-process so misuse is loud rather than hidden.
+"""
+function oz_val_count(::OverlayZipper)
+    @warn "oz_val_count is a substrate-deferred stub returning 0; see MORK_PATHMAP_SUBSTRATE_LEDGER.md. If you actually need the union-cardinality, file an issue." maxlog=1
+    0
+end
 
 oz_at_root(oz::OverlayZipper) = zipper_at_root(oz.a) || zipper_at_root(oz.b)
 
@@ -269,7 +283,10 @@ function oz_to_next_val!(oz::OverlayZipper)
     loop_count = 0
     while true
         loop_count += 1
-        loop_count > 100_000 && return false  # safety guard
+        if loop_count > 100_000
+            @warn "oz_to_next_val! hit iteration cap (100k); returning false. This indicates a likely infinite loop in OverlayZipper DFS." maxlog=1
+            return false
+        end
         if oz_descend_first_byte!(oz)
             oz_is_val(oz) && return true
             if oz_descend_until!(oz)

@@ -409,6 +409,63 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         wzt_release!(wzt2)
     end
 
+    @testset "ProductZipperG — direct, heterogeneous factor types" begin
+        # ProductZipperG existed only with indirect coverage via MORK's
+        # space_query_multi_i. The audit flagged this as a coverage gap.
+        # Direct: 2-factor product over two PathMaps. Primary leaves are
+        # themselves vals, so the cursor yields at primary-only positions
+        # too — total = 2 (primary vals) + 2×3 (Cartesian) = 8.
+        m1 = PM{UnitVal}()
+        set_val_at!(m1, b"a", UNIT_VAL)
+        set_val_at!(m1, b"b", UNIT_VAL)
+
+        m2 = PM{UnitVal}()
+        set_val_at!(m2, b"1", UNIT_VAL)
+        set_val_at!(m2, b"2", UNIT_VAL)
+        set_val_at!(m2, b"3", UNIT_VAL)
+
+        rz1 = read_zipper(m1)
+        rz2 = read_zipper(m2)
+        pzg = PathMap.ProductZipperG(rz1, [rz2])
+        @test pzg_factor_count(pzg) == 2
+
+        n = 0
+        while pzg_to_next_val!(pzg)
+            n += 1
+            n > 100 && break   # safety
+        end
+        @test n == 8
+    end
+
+    @testset "DependentZipper — callback decides secondary extension" begin
+        # Direct test of the dynamic-factor pattern. The enroll callback
+        # signature is `(payload, path, factor_idx) → (new_payload, sz_or_nothing)`
+        # — note the TUPLE return; the new_payload is threaded through.
+        m_primary = PM{UnitVal}()
+        set_val_at!(m_primary, b"X", UNIT_VAL)
+        set_val_at!(m_primary, b"Y", UNIT_VAL)
+
+        m_ext = PM{UnitVal}()
+        set_val_at!(m_ext, b"!", UNIT_VAL)
+        set_val_at!(m_ext, b"?", UNIT_VAL)
+
+        rz = read_zipper(m_primary)
+        function enroll_cb(payload, path::AbstractVector{UInt8}, factor_idx::Int)
+            (payload, path == b"X" ? read_zipper(m_ext) : nothing)
+        end
+
+        dpz = PathMap.DependentZipper(rz, nothing, enroll_cb)
+        n = 0
+        while PathMap.dpz_to_next_val!(dpz)
+            n += 1
+            n > 100 && break
+        end
+        # The walk yields each val position the cursor reaches: primary
+        # vals "X", "Y" plus the extension vals "!", "?" under X.
+        @test n >= 3
+        @test n <= 5
+    end
+
     @testset "ZipperHead — cleanup_write_zipper prunes the right spine" begin
         # Previously: cleanup used wz_path (relative) where it should have
         # used the absolute origin path. So pruning operated on the wrong

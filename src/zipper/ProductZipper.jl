@@ -387,7 +387,11 @@ end
 function pz_to_next_val!(pz::ProductZipper)
     loop_count = 0
     while true
-        loop_count += 1; loop_count > 100_000 && return false
+        loop_count += 1
+        if loop_count > 100_000
+            @warn "ProductZipper pz_to_next_val! hit iteration cap (100k); returning false. This indicates a likely infinite loop in product DFS." maxlog=1
+            return false
+        end
         if pz_descend_first_byte!(pz)
             pz_is_val(pz) && return true
             if pz_descend_until!(pz); pz_is_val(pz) && return true; end

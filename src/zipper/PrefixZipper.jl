@@ -333,7 +333,11 @@ end
 function pz_to_next_val!(pz::PrefixZipper)
     iters = 0
     while true
-        iters += 1; iters > 200_000 && return false
+        iters += 1
+        if iters > 200_000
+            @warn "pz_to_next_val! hit iteration cap (200k); returning false. This indicates a likely infinite loop in PrefixZipper DFS." maxlog=1
+            return false
+        end
         if pz_descend_first_byte!(pz)
             pz_is_val(pz) && return true
             pz_descend_until!(pz) && pz_is_val(pz) && return true

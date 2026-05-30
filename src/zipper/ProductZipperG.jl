@@ -355,7 +355,11 @@ end
 function pzg_to_next_val!(prz::ProductZipperG) :: Bool
     iters = 0
     while true
-        iters += 1; iters > 200_000 && return false
+        iters += 1
+        if iters > 200_000
+            @warn "ProductZipperG pzg_to_next_val! hit iteration cap (200k); returning false. This indicates a likely infinite loop in generic product DFS." maxlog=1
+            return false
+        end
         if pzg_descend_first_byte!(prz)
             pzg_is_val(prz) && return true
             pzg_descend_until!(prz) && pzg_is_val(prz) && return true

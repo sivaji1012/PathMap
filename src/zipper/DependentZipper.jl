@@ -343,7 +343,11 @@ end
 function dpz_to_next_val!(dpz::DependentZipper)
     loop_count = 0
     while true
-        loop_count += 1; loop_count > 200_000 && return false
+        loop_count += 1
+        if loop_count > 200_000
+            @warn "DependentZipper dpz_to_next_val! hit iteration cap (200k); returning false. This indicates a likely infinite loop in dependent DFS." maxlog=1
+            return false
+        end
         if dpz_descend_first_byte!(dpz)
             dpz_is_val(dpz) && return true
             if dpz_descend_until!(dpz); dpz_is_val(dpz) && return true; end
