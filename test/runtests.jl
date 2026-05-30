@@ -304,4 +304,64 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test isempty(drive(anchored_pz(preAB, "zzz/", 2)))
     end
 
+    @testset "wz_take_focus! honors prune=true" begin
+        # Build a map with two leaves sharing a common deep prefix.
+        m = PM{Int}()
+        set_val_at!(m, b"path:a:k1", 7)
+        set_val_at!(m, b"path:a:k2", 8)
+        set_val_at!(m, b"other",     9)
+
+        # Position cursor at the "path:a:" subtree (no val, two children).
+        wz = write_zipper_at_path(m, b"path:a:")
+        rc = wz_take_focus!(wz, true)
+        @test rc !== nothing
+
+        # Both keys under the taken subtree are gone in m.
+        @test get_val_at(m, b"path:a:k1") === nothing
+        @test get_val_at(m, b"path:a:k2") === nothing
+        # Unrelated key is untouched.
+        @test get_val_at(m, b"other")     === 9
+        # And the now-empty "path:" spine is pruned (prune=true).
+        @test wz_val_count(write_zipper_at_path(m, b"path:")) == 0
+    end
+
+    @testset "wz_remove_branches! preserves structural sharing (lazy COW)" begin
+        # If the public wz_remove_branches! mutated a shared inner node
+        # without first making it unique, m_src would also lose the keys.
+        m_src = PM{Int}()
+        set_val_at!(m_src, b"shared:k1", 1)
+        set_val_at!(m_src, b"shared:k2", 2)
+
+        m_view = PM{Int}()
+        wz = write_zipper(m_view)
+        wz_descend_to!(wz, b"copy:")
+        wz_graft_map!(wz, m_src)
+
+        # Now drop branches from the grafted region in m_view.
+        wz2 = write_zipper_at_path(m_view, b"copy:shared:")
+        wz_remove_branches!(wz2, true)
+
+        # m_view loses the branches; m_src must not.
+        @test get_val_at(m_view, b"copy:shared:k1") === nothing
+        @test get_val_at(m_view, b"copy:shared:k2") === nothing
+        @test get_val_at(m_src,  b"shared:k1")      === 1
+        @test get_val_at(m_src,  b"shared:k2")      === 2
+    end
+
+    @testset "PrefixZipper pz_descend_to_existing! is byte-correct on String input" begin
+        # The old code did `append!(pz.path, path[1:descended])` on the
+        # possibly-already-sliced caller arg, which is codepoint-indexed
+        # for String. With a String prefix in source data this would
+        # mis-append. Fix: keep a pristine `bytes_in = collect(UInt8, path)`
+        # and slice that.
+        m = PM{Int}()
+        set_val_at!(m, b"abc", 1)
+
+        pz = PathMap.PrefixZipper(b"X/", read_zipper(m))
+        # Descend with a String of pure ASCII first (the common case)
+        n1 = PathMap.pz_descend_to_existing!(pz, "X/abc")
+        @test n1 == 5
+        @test pz.path == b"X/abc"
+    end
+
 end

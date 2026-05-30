@@ -224,7 +224,8 @@ end
 
 function pz_descend_to_existing!(pz::PrefixZipper, path)
     _pos_is_invalid(pz.position) && return 0
-    pv = collect(UInt8, path)
+    bytes_in = collect(UInt8, path)
+    pv = bytes_in
     descended = 0
 
     if pz.position.tag == PREFIX_POS_PREFIX
@@ -241,7 +242,7 @@ function pz_descend_to_existing!(pz::PrefixZipper, path)
         descended += n
     end
 
-    append!(pz.path, path[1:descended])
+    append!(pz.path, bytes_in[1:descended])
     descended
 end
 

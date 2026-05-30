@@ -1072,6 +1072,7 @@ function wz_take_focus!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
     rc = into_option(focus_anr)
     rc === nothing && return nothing
     _wz_graft_internal!(z, nothing)
+    prune && wz_prune_path!(z)
     rc
 end
 
@@ -1146,6 +1147,7 @@ Returns `true` if any branches were removed.
 Mirrors `WriteZipperCore::remove_branches`.
 """
 function wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
+    _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
     if !isempty(nk)
@@ -1178,6 +1180,7 @@ Mirrors `WriteZipperCore::remove_unmasked_branches`.
 """
 function wz_remove_unmasked_branches!(z::WriteZipperCore{V,A},
                                        mask::ByteMask, prune::Bool=false) where {V,A}
+    _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
     node_remove_unmasked_branches!(focus_node, nk, mask, prune)
