@@ -364,4 +364,73 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test pz.path == b"X/abc"
     end
 
+    @testset "ZipperHead — read + write zippers at disjoint paths" begin
+        # Previously: zh_read_zipper_at_path called ReadZipperCore_at_path
+        # with 4 args; the only signature requires 6 → MethodError on every
+        # call. Whole layer was dead-on-arrival with zero test coverage.
+        m = PM{Int}()
+        set_val_at!(m, b"app:a:k1", 1)
+        set_val_at!(m, b"app:b:k1", 2)
+        set_val_at!(m, b"common:k1", 99)
+
+        zh = zipper_head(m)
+
+        # Two non-overlapping read zippers should coexist.
+        rzt_a = zh_read_zipper_at_path(zh, b"app:a:")
+        rzt_b = zh_read_zipper_at_path(zh, b"app:b:")
+        @test rzt_val_count(rzt_a) == 1
+        @test rzt_val_count(rzt_b) == 1
+
+        # A write zipper at a disjoint path coexists with both reads.
+        wzt = zh_write_zipper_at_exclusive_path(zh, b"common:")
+        @test wzt_path_exists(wzt)
+        wzt_descend_to!(wzt, b"k2")
+        wzt_set_val!(wzt, 100)
+
+        rzt_release!(rzt_a)
+        rzt_release!(rzt_b)
+        wzt_release!(wzt)
+
+        @test get_val_at(m, b"common:k2") === 100
+    end
+
+    @testset "ZipperHead — overlapping write paths conflict" begin
+        m = PM{Int}()
+        set_val_at!(m, b"region:a", 1)
+
+        zh = zipper_head(m)
+        wzt1 = zh_write_zipper_at_exclusive_path(zh, b"region:")
+        # Opening a second writer under the same prefix must raise Conflict.
+        @test_throws PathMap.Conflict zh_write_zipper_at_exclusive_path(zh, b"region:")
+        # Releasing the first must let a second writer open cleanly.
+        wzt_release!(wzt1)
+        wzt2 = zh_write_zipper_at_exclusive_path(zh, b"region:")
+        @test wzt_path_exists(wzt2)
+        wzt_release!(wzt2)
+    end
+
+    @testset "ZipperHead — cleanup_write_zipper prunes the right spine" begin
+        # Previously: cleanup used wz_path (relative) where it should have
+        # used the absolute origin path. So pruning operated on the wrong
+        # subtree (or no-op'd entirely).
+        m = PM{Int}()
+        set_val_at!(m, b"unrelated", 7)
+
+        zh = zipper_head(m)
+        # Open a zipper rooted DEEP, create a dangling sub-path, take it.
+        wzt = zh_write_zipper_at_exclusive_path(zh, b"deep:spine:")
+        wzt_descend_to!(wzt, b"leaf")
+        wzt_set_val!(wzt, 42)
+        wzt_remove_val!(wzt)  # removes the val, leaves the spine dangling
+
+        zh_cleanup_write_zipper!(zh, wzt)
+
+        # The dangling "deep:spine:leaf" path must be pruned.
+        @test get_val_at(m, b"deep:spine:leaf") === nothing
+        # Unrelated keys must survive.
+        @test get_val_at(m, b"unrelated") === 7
+        # And the spine itself is gone (val_count under "deep:" == 0).
+        @test wz_val_count(write_zipper_at_path(m, b"deep:")) == 0
+    end
+
 end

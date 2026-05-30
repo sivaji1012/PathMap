@@ -173,7 +173,8 @@ function zh_read_zipper_at_path(zh::ZipperHead{V,A}, path) where {V,A}
     tracker = ZipperTracker{TrackingRead}(zh.tracker_paths, p)
     _ensure_root!(zh.pathmap)
     rz = ReadZipperCore_at_path(zh.pathmap.root::TrieNodeODRc{V,A},
-                                p, zh.pathmap.root_val, zh.pathmap.alloc)
+                                p, length(p), 0,
+                                zh.pathmap.root_val, zh.pathmap.alloc)
     ReadZipperTracked(rz, tracker)
 end
 
@@ -186,7 +187,8 @@ function zh_read_zipper_at_path_unchecked(zh::ZipperHead{V,A}, path) where {V,A}
     p = collect(UInt8, path)
     _ensure_root!(zh.pathmap)
     rz = ReadZipperCore_at_path(zh.pathmap.root::TrieNodeODRc{V,A},
-                                p, zh.pathmap.root_val, zh.pathmap.alloc)
+                                p, length(p), 0,
+                                zh.pathmap.root_val, zh.pathmap.alloc)
     ReadZipperTracked{V,A}(rz, nothing)
 end
 
@@ -194,20 +196,19 @@ end
     zh_cleanup_write_zipper!(zh, z)
 
 After dropping a write zipper, prune any empty dangling path it created.
-Mirrors `cleanup_write_zipper`.
+Mirrors `cleanup_write_zipper` (zipper_head.rs:302).
 """
 function zh_cleanup_write_zipper!(zh::ZipperHead{V,A},
                                    z::WriteZipperTracked{V,A}) where {V,A}
-    origin = copy(wz_path(z.z))   # absolute origin path of the tracked zipper
+    # The *absolute* path the zipper was rooted at lives in prefix_buf[1:origin_path_len].
+    # wz_path returns the RELATIVE path inside the rooted zipper, which is empty
+    # for an at-root cursor — using it here previously pruned the wrong subtree.
+    origin = copy(view(z.z.prefix_buf, 1:z.z.origin_path_len))
     wzt_release!(z)               # release tracker + finalize
     isempty(origin) && return
-    hz = write_zipper_at_path(zh.pathmap, origin)
-    if !wz_path_exists(hz)
-        # Prune dangling empty path
-        hz2 = write_zipper(zh.pathmap)
-        wz_descend_to!(hz2, origin)
-        wz_remove_val!(hz2, true)
-    end
+    hz = write_zipper(zh.pathmap)
+    wz_descend_to!(hz, origin)
+    wz_prune_path!(hz)            # walks up from origin, removing any empty spine
 end
 
 """
@@ -259,7 +260,8 @@ function zho_read_zipper_at_path(zho::ZipperHeadOwned{V,A}, path) where {V,A}
     lock(zho._lock) do
         _ensure_root!(zho.pathmap)
         rz = ReadZipperCore_at_path(zho.pathmap.root::TrieNodeODRc{V,A},
-                                    p, zho.pathmap.root_val, zho.pathmap.alloc)
+                                    p, length(p), 0,
+                                    zho.pathmap.root_val, zho.pathmap.alloc)
         ReadZipperTracked(rz, tracker)
     end
 end
