@@ -67,15 +67,23 @@ deliberately.
   discipline) and PASS only after part 3.** That fail-then-pass is the literal proof
   the un-masking is contained. If it passes against 1+2, the test is too weak — fix
   the test first.
+  **ORDERING (do not let fresh momentum skip this):** write Gate A and *watch it
+  fail* on the 1+2-only intermediate (shallow clone landed, discipline NOT yet)
+  BEFORE implementing part 3. A test written after the fix tends to be a test that
+  passes, not one that proves. The fail-first observation IS the proof the gate is
+  real — same logic as the step-0 rewrite guard.
 - **Gate B — structural-sharing assertion (proves #1 FIXED, not just not-broken).**
   After a shallow `clone_self` of a node with children, assert a child node is
   `ptr_eq` / `shared_node_id`-identical between original and clone. The integration
   tests CANNOT give you this — they don't measure sharing. This is the gate that
   proves `deepcopy` is actually gone and sharing is real.
 - **Gate C — MORK integration run (BLOCKING, not post-hoc).** Run MORK's full suite
-  against the modified PathMap in the integrated workspace. PathMap is the substrate
-  MORK rides on; a subtle COW bug surfaces three layers up in `.metta` and is
-  ruinously expensive to diagnose from there. Green MORK is part of done.
+  against the modified PathMap built **in the integrated workspace** (MORK resolving
+  the in-tree, changed PathMap via the workspace dev-dep) — NOT MORK against a
+  published/registered PathMap, which would measure nothing. The harness already
+  exists (the earlier MORK-impact check used it). PathMap is the substrate MORK rides
+  on; a subtle COW bug surfaces three layers up in `.metta` and is ruinously
+  expensive to diagnose from there. Green MORK is part of done.
 
 - **Guard (step 0):** the existing "COW refcount semantics (rewrite guard)" testset
   (`test/runtests.jl`) must stay green through the refcount rewrite.
