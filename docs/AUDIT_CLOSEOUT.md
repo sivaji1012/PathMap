@@ -16,8 +16,25 @@ verification gate.
 | 2 | **Shallow `clone_self`** (LineListNode slots, DenseByteNode/CellByteNode via `_cf_copy`, BridgeNode child via `copy()`) — structural sharing restored | ✅ Option B (suite 124/124, Gate B) |
 | 3b | **COW discipline** — `make_unique!` before each `drop_head_dyn!` RECURSION (LineListNode) + before the in-place merge in `wz_join_into_take!` | ✅ Option B (Gate A + MORK 1715/1715) |
 | 2-A | **Node-keyed `@atomic refcnt`** rewrite (thread-safety + Rust `slim_ptrs` fidelity) — Option A hardening | ✅ (suite 128/128 incl. atomic concurrency test, MORK 1715/1715) |
-| 4 | Arena allocator (Bumper.jl) in-or-out decision | ⏳ |
-| 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ⏳ |
+| 4 | Arena allocator (Bumper.jl) in-or-out decision | ✅ OUT (decision recorded below) |
+| 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ✅ `Ring.jl` header comment |
+
+## Step 4 decision — Bumper.jl arena: OUT (keep the seam)
+
+**Decision (2026-06-02): do NOT take a Bumper.jl dependency now; keep the `alloc`
+seam.** Rationale:
+- The `alloc` field / `A <: Allocator` parameter is the faithful image of Rust's
+  allocator threading (`new_in` / `Box::new_in`). It is inert on the `GlobalAlloc`
+  path (a phantom, exactly as on Rust's stable non-nightly path) but is the correct
+  seam where a bump allocator would plug in — so the architecture is already
+  arena-ready without the dependency.
+- Write-path perf (~4 ms / 1k inserts) is acceptable for the current bootstrap
+  workloads; no measured bottleneck justifies the dependency yet.
+- Project policy: no new runtime dependency unless justified vs a Julia-native
+  approach. Bumper.jl is not justified at present.
+- Revisit IF a profiled hot path shows node-allocation churn dominating. At that
+  point the change is local (plug an allocator type into the existing seam), not a
+  rewrite. Until then PathMap is "done" after this close-out.
 
 ## Option A / B split (decided 2026-06-02, "B now, A later")
 

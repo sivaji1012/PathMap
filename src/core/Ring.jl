@@ -497,6 +497,21 @@ psubtract(::Nothing, ::Nothing) = AlgResNone()
 
 # Rust: `impl Lattice for u64` implements pjoin as max, pmeet as min.
 # DistributiveLattice (psubtract) is implemented for some integer types.
+#
+# DELIBERATE DIVERGENCE (PathMap audit 2026-06-02, close-out step 5): upstream
+# tags several of its integer/bool lattice impls as `//GOAT trash` placeholders.
+# This port implements the *intended* algebra instead — real max/min for join/meet,
+# saturating subtraction for unsigned psubtract, equal→None for signed, and proper
+# &/| for Bool. This is intentionally MORE correct, NOT an accidental drift.
+#   • Latent + SAFE for the current stack: MORK / TensorNetworks / Supercompiler /
+#     Core / WILLIAM use `PathMap{UnitVal}` exclusively for algebraic merges
+#     (66× UnitVal, a few ThinBytes/MorkSymbol, ZERO Int/Bool/Float at the consumer
+#     layer). The UnitVal lattice (below) is bit-exact to Rust `impl Lattice for ()`.
+#     Int/Bool PathMaps exist only INTERNALLY (precompile warmup, ZipperTracking
+#     reader-counts / write-locks) and are used as plain get/set, never merged.
+#   • A FUTURE `PathMap{Int}`/`{Bool}` consumer that relies on the Rust stub's
+#     (placeholder) behaviour through pjoin/pmeet/psubtract would see this richer
+#     algebra. That is the one place to revisit if such a consumer is added.
 
 for T in (UInt8, UInt16, UInt32, UInt64, UInt128, Int8, Int16, Int32, Int64, Int128)
     @eval begin
