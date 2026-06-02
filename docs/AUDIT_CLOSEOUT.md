@@ -15,7 +15,7 @@ verification gate.
 | 3a | **COW discipline — `make_unique!` before `drop_head_dyn!` in `wz_join_k_path_into!`** (decoupled live-bug fix) + Gate A regression | ✅ `fac3d84` (suite 118/118) |
 | 2 | **Shallow `clone_self`** (LineListNode slots, DenseByteNode/CellByteNode via `_cf_copy`, BridgeNode child via `copy()`) — structural sharing restored | ✅ Option B (suite 124/124, Gate B) |
 | 3b | **COW discipline** — `make_unique!` before each `drop_head_dyn!` RECURSION (LineListNode) + before the in-place merge in `wz_join_into_take!` | ✅ Option B (Gate A + MORK 1715/1715) |
-| 2-A | **Node-keyed `@atomic refcnt`** rewrite (thread-safety + Rust `slim_ptrs` fidelity) — Option A hardening | ⏳ deferred follow-up — see "Option A/B split" below |
+| 2-A | **Node-keyed `@atomic refcnt`** rewrite (thread-safety + Rust `slim_ptrs` fidelity) — Option A hardening | ✅ (suite 128/128 incl. atomic concurrency test, MORK 1715/1715) |
 | 4 | Arena allocator (Bumper.jl) in-or-out decision | ⏳ |
 | 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ⏳ |
 
@@ -35,13 +35,16 @@ Rust `slim_ptrs refcnt: AtomicU32`.
   blast radius. Single-thread-correct. `drop_head_dyn!` for DenseByteNode was
   ALREADY discipline-correct (copy + `make_unique!` + fresh node); only
   LineListNode's two recursions and `wz_join_into_take!` needed the guard.
-- **Option A (deferred follow-up, "2-A"):** add `@atomic refcnt::UInt32` to the
-  four mutable node structs (LineListNode, DenseByteNode, CellByteNode,
-  BridgeNode), strip `_refcount` from `TrieNodeODRc`, rewrite
-  `copy`/`make_unique!`/`refcount` node-keyed. Immutable nodes (TinyRefNode,
-  EmptyNode) need no field — they upgrade-on-write, so `make_unique!` is a no-op.
-  `refcount()` has only two call sites (`make_unique!`, `WriteZipper.jl:139`), so
-  the rewrite surface is small. Do it for the concurrent-MORK story.
+- **Option A (LANDED, "2-A"):** added `@atomic refcnt::UInt32` to the four mutable
+  node structs (LineListNode, DenseByteNode, CellByteNode, BridgeNode) with a
+  defaulting inner ctor each; stripped `_refcount` from `TrieNodeODRc`; rewrote
+  `copy`/`make_unique!`/`refcount` node-keyed via a generic protocol
+  (`_has_refcnt`/`_node_refcount`/`_node_inc_refcnt!`/`_node_dec_refcnt!` using
+  `getfield`/`modifyfield!` with memory order — the `hasfield` branch folds at
+  compile time). Immutable nodes (TinyRefNode, EmptyNode) carry no field — they
+  upgrade-on-write, so `make_unique!` is a no-op and they report count 1. The
+  step-0 rewrite guard stayed green (contract preserved); a new atomic-concurrency
+  test asserts 500 concurrent `copy`s give an EXACT count (no lost updates).
 
 ## ⚠️ CORRECTION: the COW bug was LIVE, not latent — and discipline DECOUPLES
 

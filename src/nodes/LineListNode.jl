@@ -38,6 +38,9 @@ mutable struct LineListNode{V, A <: Allocator} <: AbstractTrieNode{V, A}
     key0::Vector{UInt8}   # key for slot0; empty iff slot0 === nothing
     key1::Vector{UInt8}   # key for slot1; empty iff slot1 === nothing
     alloc::A
+    @atomic refcnt::UInt32   # node-keyed COW refcount (mirrors Rust slim_ptrs refcnt: AtomicU32)
+    # Inner ctor keeps the existing 5-arg call convention; refcnt always starts at 1.
+    LineListNode{V, A}(s0, s1, k0, k1, a) where {V, A <: Allocator} = new{V, A}(s0, s1, k0, k1, a, UInt32(1))
 end
 
 # =====================================================================

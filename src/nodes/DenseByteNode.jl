@@ -74,6 +74,8 @@ mutable struct DenseByteNode{V, A <: Allocator} <: AbstractByteNode{V, A}
     mask   :: ByteMask
     values :: Vector{CoFreeEntry{V, A}}
     alloc  :: A
+    @atomic refcnt::UInt32   # node-keyed COW refcount (close-out 2-A)
+    DenseByteNode{V, A}(m, v, a) where {V, A <: Allocator} = new{V, A}(m, v, a, UInt32(1))
 end
 
 """
@@ -86,6 +88,8 @@ mutable struct CellByteNode{V, A <: Allocator} <: AbstractByteNode{V, A}
     mask   :: ByteMask
     values :: Vector{CoFreeEntry{V, A}}
     alloc  :: A
+    @atomic refcnt::UInt32   # node-keyed COW refcount (close-out 2-A)
+    CellByteNode{V, A}(m, v, a) where {V, A <: Allocator} = new{V, A}(m, v, a, UInt32(1))
 end
 
 # =====================================================================

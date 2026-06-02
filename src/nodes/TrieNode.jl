@@ -361,10 +361,28 @@ mutable struct TrieNodeODRc{V, A <: Allocator}
     node::Union{Nothing, AbstractTrieNode{V, A}}
     # Allocator — phantom on GlobalAlloc path, matches Rust stable API shape.
     alloc::A
-    # Explicit refcount for COW tracking (matches Arc strong_count semantics).
-    # Incremented on clone, decremented implicitly via finalizer in future work.
-    # Phase 1: initialised to 1 for every new node, unused until WriteZipper.
-    _refcount::Base.RefValue{Int}
+end
+# NOTE (close-out 2-A): the refcount is now NODE-KEYED — each mutable node carries
+# an `@atomic refcnt::UInt32` (mirrors Rust `slim_ptrs refcnt: AtomicU32` as the
+# node's first field), so all wrappers of the same node share ONE atomic counter.
+# This is thread-safe (vs the previous racy per-wrapper `Ref{Int} += 1`) and makes
+# divergence between wrappers structurally impossible. Immutable nodes (TinyRefNode,
+# EmptyNode) carry no field: they upgrade-on-write, so make_unique! is a no-op and
+# they report a sentinel count of 1.
+
+# ── node-keyed refcount protocol ─────────────────────────────────────
+# `hasfield(typeof(n), :refcnt)` is a compile-time constant per type, so the branch
+# folds away. getfield/modifyfield! with a memory order is the generic API for an
+# `@atomic` struct field.
+@inline _has_refcnt(@nospecialize n) = hasfield(typeof(n), :refcnt)
+@inline _node_refcount(@nospecialize n) = _has_refcnt(n) ? Int(getfield(n, :refcnt, :acquire)) : 1
+@inline function _node_inc_refcnt!(@nospecialize n)
+    _has_refcnt(n) && modifyfield!(n, :refcnt, +, UInt32(1), :acquire_release)
+    nothing
+end
+@inline function _node_dec_refcnt!(@nospecialize n)
+    _has_refcnt(n) && modifyfield!(n, :refcnt, -, UInt32(1), :acquire_release)
+    nothing
 end
 
 # Constructors
@@ -372,29 +390,31 @@ end
 """
     TrieNodeODRc(node::AbstractTrieNode{V,A}, alloc::A) -> TrieNodeODRc{V,A}
 
-Create a new node pointer with refcount 1. Mirrors `TrieNodeODRc::new_in`.
+Create a new node pointer. The node carries its own refcount (node-keyed).
+Mirrors `TrieNodeODRc::new_in`.
 """
-TrieNodeODRc(node::AbstractTrieNode{V, A}, alloc::A) where {V, A <: Allocator} = TrieNodeODRc{V, A}(node, alloc, Ref(1))
+TrieNodeODRc(node::AbstractTrieNode{V, A}, alloc::A) where {V, A <: Allocator} = TrieNodeODRc{V, A}(node, alloc)
 
 """
     TrieNodeODRc{V,A}() -> TrieNodeODRc{V,A}
 
 Create an empty-sentinel node pointer. Mirrors `TrieNodeODRc::new_empty`.
 """
-TrieNodeODRc{V, A}() where {V, A <: Allocator} = TrieNodeODRc{V, A}(nothing, GlobalAlloc(), Ref(1))
+TrieNodeODRc{V, A}() where {V, A <: Allocator} = TrieNodeODRc{V, A}(nothing, GlobalAlloc())
 
-# Shallow clone — bumps refcount (mirrors Arc::clone)
+# Shallow clone — bumps the NODE's atomic refcount (mirrors Arc::clone)
 function Base.copy(rc::TrieNodeODRc{V, A}) where {V, A <: Allocator}
-    rc._refcount[] += 1
-    TrieNodeODRc{V, A}(rc.node, rc.alloc, rc._refcount)
+    rc.node !== nothing && _node_inc_refcnt!(rc.node)
+    TrieNodeODRc{V, A}(rc.node, rc.alloc)
 end
 
 """
     refcount(rc::TrieNodeODRc) -> Int
 
-Returns current strong reference count. Mirrors `Arc::strong_count`.
+Returns current strong reference count (read through the node). Mirrors
+`Arc::strong_count`. The empty sentinel and immutable nodes report 1.
 """
-refcount(rc::TrieNodeODRc) = rc._refcount[]
+refcount(rc::TrieNodeODRc) = rc.node === nothing ? 1 : _node_refcount(rc.node)
 
 """
     ptr_eq(a::TrieNodeODRc, b::TrieNodeODRc) -> Bool
@@ -436,11 +456,14 @@ clones the inner node (copy-on-write). Mirrors `TrieNodeODRc::make_unique`.
 """
 function make_unique!(rc::TrieNodeODRc{V, A}) where {V, A <: Allocator}
     @assert !is_empty_node(rc) "make_unique! on empty sentinel"
-    if rc._refcount[] > 1
-        rc._refcount[] -= 1
-        new_inner = clone_self(rc.node)
+    n = rc.node
+    # Immutable nodes (TinyRefNode/EmptyNode) carry no refcount: they upgrade on
+    # write (the caller replaces the wrapper), so there is nothing to uniquify.
+    _has_refcnt(n) || return rc
+    if _node_refcount(n) > 1
+        _node_dec_refcnt!(n)               # one fewer referrer to the shared node
+        new_inner = clone_self(n)          # shallow clone; the fresh node has refcnt = 1
         rc.node = new_inner.node
-        rc._refcount = Ref(1)
     end
     return rc
 end

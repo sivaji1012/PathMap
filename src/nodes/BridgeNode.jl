@@ -28,9 +28,10 @@ mutable struct BridgeNode{V, A <: Allocator} <: AbstractTrieNode{V, A}
     is_child :: Bool
     payload  :: Union{Nothing, ValOrChild{V, A}}   # nothing = empty sentinel
     alloc    :: A
+    @atomic refcnt::UInt32   # node-keyed COW refcount (close-out 2-A)
     # Explicit inner constructor to suppress auto-generated default
     BridgeNode{V, A}(k::Vector{UInt8}, c::Bool, p::Union{Nothing, ValOrChild{V, A}}, a::A) where {V, A <: Allocator} =
-        new{V, A}(k, c, p, a)
+        new{V, A}(k, c, p, a, UInt32(1))
 end
 
 """

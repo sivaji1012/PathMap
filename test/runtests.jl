@@ -616,4 +616,27 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test get_val_at(m1, b"abcXX") == 1   # source intact through the recursion
         @test get_val_at(m1, b"abcYY") == 2
     end
+
+    # ── close-out 2-A: the refcount is now node-keyed (@atomic refcnt on the node),
+    #    so concurrent copy() from many threads increments ONE atomic counter with no
+    #    lost updates. The previous per-wrapper `Ref{Int} += 1` was racy. Needs
+    #    --threads>1 to actually contend; single-threaded it would pass vacuously.
+    @testset "node-keyed refcount is atomic under concurrent copy (2-A)" begin
+        if Threads.nthreads() < 2
+            @test_skip "needs julia --threads>1 to contend on the atomic refcount"
+        else
+            m = PM{Int}()
+            set_val_at!(m, b"alpha", 1)
+            set_val_at!(m, b"beta", 2)
+            root = m.root
+            M = 500
+            tasks  = [Threads.@spawn copy(root) for _ in 1:M]
+            copies = fetch.(tasks)
+            @test refcount(root) == M + 1                       # exact: no lost increments
+            @test all(c -> ptr_eq(root, c), copies)             # all share the one node
+            make_unique!(copies[1])                             # detach one
+            @test refcount(root) == M                           # exact decrement
+            @test !ptr_eq(root, copies[1])
+        end
+    end
 end
