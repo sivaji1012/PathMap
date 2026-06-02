@@ -22,15 +22,15 @@ Tracks whether the cursor is inside the prefix, off the prefix (invalid
 path), or in the source zipper.  Mirrors `PrefixPos` in prefix_zipper.rs.
 """
 @enum PrefixPosTag begin
-    PREFIX_POS_PREFIX  = 1   # valid bytes into prefix
-    PREFIX_POS_OFF     = 2   # descended off prefix (invalid path)
-    PREFIX_POS_SOURCE  = 3   # prefix fully traversed; cursor in source
+    PREFIX_POS_PREFIX = 1   # valid bytes into prefix
+    PREFIX_POS_OFF    = 2   # descended off prefix (invalid path)
+    PREFIX_POS_SOURCE = 3   # prefix fully traversed; cursor in source
 end
 
 struct PrefixPos
-    tag     ::PrefixPosTag
-    valid   ::Int   # bytes matched in prefix (Prefix / PrefixOff)
-    invalid ::Int   # bytes beyond valid prefix (PrefixOff only)
+    tag     :: PrefixPosTag
+    valid   :: Int   # bytes matched in prefix (Prefix / PrefixOff)
+    invalid :: Int   # bytes beyond valid prefix (PrefixOff only)
 end
 
 PrefixPos_prefix(valid::Int)  = PrefixPos(PREFIX_POS_PREFIX, valid, 0)
@@ -41,8 +41,8 @@ _pos_is_invalid(p::PrefixPos) = p.tag == PREFIX_POS_OFF
 _pos_is_source(p::PrefixPos)  = p.tag == PREFIX_POS_SOURCE
 
 function _pos_prefixed_depth(p::PrefixPos)
-    p.tag == PREFIX_POS_PREFIX  && return p.valid
-    p.tag == PREFIX_POS_OFF     && return p.valid + p.invalid
+    p.tag == PREFIX_POS_PREFIX && return p.valid
+    p.tag == PREFIX_POS_OFF && return p.valid + p.invalid
     nothing   # Source
 end
 
@@ -57,11 +57,11 @@ Wraps source zipper `Z` and prepends `prefix` bytes to its path space.
 Mirrors `PrefixZipper<'prefix, Z>`.
 """
 mutable struct PrefixZipper{Z}
-    path         ::Vector{UInt8}   # full absolute path (origin_depth prefix + relative)
-    source       ::Z
-    prefix       ::Vector{UInt8}   # the full prefix bytes
-    origin_depth ::Int             # bytes of prefix that belong to the root prefix path
-    position     ::PrefixPos
+    path         :: Vector{UInt8}   # full absolute path (origin_depth prefix + relative)
+    source       :: Z
+    prefix       :: Vector{UInt8}   # the full prefix bytes
+    origin_depth :: Int             # bytes of prefix that belong to the root prefix path
+    position     :: PrefixPos
 end
 
 """
@@ -70,7 +70,7 @@ end
 Create a `PrefixZipper` wrapping `source` with the given `prefix`.
 Mirrors `PrefixZipper::new`.
 """
-function PrefixZipper(prefix, source::Z) where Z
+function PrefixZipper(prefix, source::Z) where {Z}
     pv = collect(UInt8, prefix)
     zipper_reset!(source)
     pos = isempty(pv) ? PrefixPos_source() : PrefixPos_prefix(0)
@@ -81,7 +81,9 @@ end
 # Internal helpers
 # =====================================================================
 
-"""Ensure path buffer starts with prefix[1:origin_depth]."""
+"""
+Ensure path buffer starts with prefix[1:origin_depth].
+"""
 function _pz_prepare_buffers!(pz::PrefixZipper)
     if length(pz.path) < pz.origin_depth
         resize!(pz.path, pz.origin_depth)
@@ -89,7 +91,9 @@ function _pz_prepare_buffers!(pz::PrefixZipper)
     end
 end
 
-"""Set position to Prefix{valid} or Source if valid == prefix_len - origin_depth."""
+"""
+Set position to Prefix{valid} or Source if valid == prefix_len - origin_depth.
+"""
 function _pz_set_valid!(pz::PrefixZipper, valid::Int)
     @assert valid <= length(pz.prefix) - pz.origin_depth
     if valid == length(pz.prefix) - pz.origin_depth
@@ -103,7 +107,7 @@ end
 Ascend `steps` bytes.  Returns number of bytes NOT ascended (0 = fully ascended).
 Mirrors `ascend_n`.
 """
-function _pz_ascend_n!(pz::PrefixZipper, steps::Int) :: Int
+function _pz_ascend_n!(pz::PrefixZipper, steps::Int)::Int
     # Case: PrefixOff → reduce invalid, then valid
     if _pos_is_invalid(pz.position)
         valid = pz.position.valid
@@ -147,7 +151,7 @@ Internal ascend_until.  `VAL=true` → stop at val; `VAL=false` → stop at bran
 Returns number of bytes ascended, or `nothing` if already at root.
 Mirrors `ascend_until_n`.
 """
-function _pz_ascend_until_n!(pz::PrefixZipper, val::Bool) :: Union{Nothing,Int}
+function _pz_ascend_until_n!(pz::PrefixZipper, val::Bool)::Union{Nothing, Int}
     pz_at_root(pz) && return nothing
     ascended = 0
 
@@ -163,7 +167,10 @@ function _pz_ascend_until_n!(pz::PrefixZipper, val::Bool) :: Union{Nothing,Int}
     end
 
     depth = _pos_prefixed_depth(pz.position)
-    if depth === nothing; return nothing; end
+    if depth === nothing
+        ;
+        return nothing;
+    end
     ascended += depth
     _pz_set_valid!(pz, 0)
     ascended
@@ -175,7 +182,7 @@ end
 
 function pz_path_exists(pz::PrefixZipper)
     pz.position.tag == PREFIX_POS_PREFIX && return true
-    _pos_is_invalid(pz.position)         && return false
+    _pos_is_invalid(pz.position) && return false
     zipper_path_exists(pz.source)
 end
 
@@ -195,11 +202,11 @@ end
 
 function pz_child_count(pz::PrefixZipper)
     pz.position.tag == PREFIX_POS_PREFIX && return 1
-    _pos_is_invalid(pz.position)         && return 0
+    _pos_is_invalid(pz.position) && return 0
     zipper_child_count(pz.source)
 end
 
-pz_path(pz::PrefixZipper) = view(pz.path, pz.origin_depth+1:length(pz.path))
+pz_path(pz::PrefixZipper) = view(pz.path, (pz.origin_depth + 1):length(pz.path))
 
 pz_val_count(pz::PrefixZipper) = zipper_val_count(pz.source)
 
@@ -230,9 +237,9 @@ function pz_descend_to_existing!(pz::PrefixZipper, path)
 
     if pz.position.tag == PREFIX_POS_PREFIX
         valid = pz.position.valid
-        rest_prefix = view(pz.prefix, pz.origin_depth + valid + 1 : length(pz.prefix))
+        rest_prefix = view(pz.prefix, (pz.origin_depth + valid + 1):length(pz.prefix))
         overlap = find_prefix_overlap(rest_prefix, pv)
-        pv = pv[overlap+1:end]
+        pv = pv[(overlap + 1):end]
         _pz_set_valid!(pz, valid + overlap)
         descended += overlap
     end
@@ -249,8 +256,8 @@ end
 function pz_descend_to!(pz::PrefixZipper, path)
     pv = collect(UInt8, path)
     existing = pz_descend_to_existing!(pz, pv)
-    rem = pv[existing+1:end]
-    isempty(rem) && return
+    rem = pv[(existing + 1):end]
+    isempty(rem) && return nothing
 
     append!(pz.path, rem)
     if pz.position.tag == PREFIX_POS_PREFIX
@@ -279,18 +286,18 @@ function pz_descend_until!(pz::PrefixZipper)
     # Jump through remaining prefix bytes
     if !_pos_is_source(pz.position)
         depth = _pos_prefixed_depth(pz.position)::Int
-        rem = view(pz.prefix, pz.origin_depth + depth + 1 : length(pz.prefix))
+        rem = view(pz.prefix, (pz.origin_depth + depth + 1):length(pz.prefix))
         append!(pz.path, rem)
         pz.position = PrefixPos_source()
     end
     len_before = length(zipper_path(pz.source))
     zipper_descend_until!(pz.source) || return false
     sp = zipper_path(pz.source)
-    append!(pz.path, sp[len_before+1:end])
+    append!(pz.path, sp[(len_before + 1):end])
     true
 end
 
-function pz_ascend!(pz::PrefixZipper, steps::Int=1)
+function pz_ascend!(pz::PrefixZipper, steps::Int = 1)
     remaining = _pz_ascend_n!(pz, steps)
     ascended = steps - remaining
     resize!(pz.path, length(pz.path) - ascended)
@@ -349,7 +356,7 @@ function pz_to_next_val!(pz::PrefixZipper)
                     ascending = false
                 else
                     pz_ascend_byte!(pz) || return false
-                    pz_at_root(pz)      && return false
+                    pz_at_root(pz) && return false
                 end
             end
         end
@@ -365,12 +372,13 @@ pz_root_prefix_path(pz::PrefixZipper) = view(pz.path, 1:pz.origin_depth)
 
 """
     pz_prefix_path_below_focus(pz) → Union{Nothing, Vector{UInt8}}
+
 Remaining prefix bytes from the current cursor, or `nothing` if off-prefix.
 Mirrors `prefix_path_below_focus`.
 """
 function pz_prefix_path_below_focus(pz::PrefixZipper)
     pz.position.tag == PREFIX_POS_PREFIX &&
-        return view(pz.prefix, pz.origin_depth + pz.position.valid + 1 : length(pz.prefix))
+        return view(pz.prefix, (pz.origin_depth + pz.position.valid + 1):length(pz.prefix))
     _pos_is_source(pz.position) && return UInt8[]
     nothing
 end

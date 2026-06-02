@@ -111,11 +111,9 @@ const Bits4 = NTuple{4, UInt64}
 const EMPTY_BITS4::Bits4 = (UInt64(0), UInt64(0), UInt64(0), UInt64(0))
 const FULL_BITS4::Bits4  = (typemax(UInt64), typemax(UInt64), typemax(UInt64), typemax(UInt64))
 
-@inline count_bits(m::Bits4)::Int =
-    Int(count_ones(m[1]) + count_ones(m[2]) + count_ones(m[3]) + count_ones(m[4]))
+@inline count_bits(m::Bits4)::Int = Int(count_ones(m[1]) + count_ones(m[2]) + count_ones(m[3]) + count_ones(m[4]))
 
-@inline is_empty_mask(m::Bits4)::Bool =
-    m[1] == 0 && m[2] == 0 && m[3] == 0 && m[4] == 0
+@inline is_empty_mask(m::Bits4)::Bool = m[1] == 0 && m[2] == 0 && m[3] == 0 && m[4] == 0
 
 @inline function test_bit(m::Bits4, k::UInt8)::Bool
     idx = ((k & 0xC0) >> 6) + 1          # 1-indexed word
@@ -142,11 +140,11 @@ end
     return ntuple(i -> i == idx ? m[i] & clear_at : m[i], 4)
 end
 
-@inline bor(a::Bits4,   b::Bits4)::Bits4 = (a[1]|b[1], a[2]|b[2], a[3]|b[3], a[4]|b[4])
-@inline band(a::Bits4,  b::Bits4)::Bits4 = (a[1]&b[1], a[2]&b[2], a[3]&b[3], a[4]&b[4])
-@inline bxor(a::Bits4,  b::Bits4)::Bits4 = (a[1]⊻b[1], a[2]⊻b[2], a[3]⊻b[3], a[4]⊻b[4])
+@inline bor(a::Bits4, b::Bits4)::Bits4   = (a[1]|b[1], a[2]|b[2], a[3]|b[3], a[4]|b[4])
+@inline band(a::Bits4, b::Bits4)::Bits4  = (a[1]&b[1], a[2]&b[2], a[3]&b[3], a[4]&b[4])
+@inline bxor(a::Bits4, b::Bits4)::Bits4  = (a[1]⊻b[1], a[2]⊻b[2], a[3]⊻b[3], a[4]⊻b[4])
 @inline bandn(a::Bits4, b::Bits4)::Bits4 = (a[1]&~b[1], a[2]&~b[2], a[3]&~b[3], a[4]&~b[4])
-@inline bnot(a::Bits4)::Bits4 = (~a[1], ~a[2], ~a[3], ~a[4])
+@inline bnot(a::Bits4)::Bits4            = (~a[1], ~a[2], ~a[3], ~a[4])
 
 # Lattice + DistributiveLattice on Bits4 — upstream lines 633-653
 
@@ -241,8 +239,8 @@ Already covered by the default constructor.
 # Equality
 Base.:(==)(a::ByteMask, b::ByteMask) = a.bits == b.bits
 Base.:(==)(a::ByteMask, b::Bits4)    = a.bits == b
-Base.:(==)(a::Bits4,    b::ByteMask) = a == b.bits
-Base.hash(m::ByteMask, h::UInt) = hash(m.bits, h)
+Base.:(==)(a::Bits4, b::ByteMask)    = a == b.bits
+Base.hash(m::ByteMask, h::UInt)      = hash(m.bits, h)
 
 # =====================================================================
 # ByteMask — Sierpinski SUBSET table
@@ -303,14 +301,20 @@ function from_range(range::AbstractRange)::ByteMask
     end
     start_i = Int(start)
     end_i = Int(stop_incl)   # inclusive
-    if start_i < 0; start_i = 0; end
-    if end_i > 255; end_i = 255; end
+    if start_i < 0
+        ;
+        start_i = 0;
+    end
+    if end_i > 255
+        ;
+        end_i = 255;
+    end
     start_i > end_i && return ByteMask()
 
     start_word = start_i >> 6
-    end_word   = end_i   >> 6
+    end_word   = end_i >> 6
     start_bit  = start_i & 0x3F
-    end_bit    = end_i   & 0x3F
+    end_bit    = end_i & 0x3F
 
     m = [UInt64(0), UInt64(0), UInt64(0), UInt64(0)]
     if start_word == end_word
@@ -357,11 +361,11 @@ Return a new mask with bit `k` cleared.
 @inline unset(m::ByteMask, k::UInt8)::ByteMask = ByteMask(with_bit_cleared(m.bits, k))
 
 # Bitwise ops produce new ByteMasks
-bor(a::ByteMask,   b::ByteMask)::ByteMask = ByteMask(bor(a.bits, b.bits))
-band(a::ByteMask,  b::ByteMask)::ByteMask = ByteMask(band(a.bits, b.bits))
-bxor(a::ByteMask,  b::ByteMask)::ByteMask = ByteMask(bxor(a.bits, b.bits))
+bor(a::ByteMask, b::ByteMask)::ByteMask   = ByteMask(bor(a.bits, b.bits))
+band(a::ByteMask, b::ByteMask)::ByteMask  = ByteMask(band(a.bits, b.bits))
+bxor(a::ByteMask, b::ByteMask)::ByteMask  = ByteMask(bxor(a.bits, b.bits))
 bandn(a::ByteMask, b::ByteMask)::ByteMask = ByteMask(bandn(a.bits, b.bits))
-bnot(a::ByteMask)::ByteMask = ByteMask(bnot(a.bits))
+bnot(a::ByteMask)::ByteMask               = ByteMask(bnot(a.bits))
 
 # Julia stdlib operator overloading for user-convenience
 Base.:(|)(a::ByteMask, b::ByteMask) = bor(a, b)
@@ -606,7 +610,7 @@ function _bytemask_iter_next!(it::ByteMaskIter)::Union{UInt8, Nothing}
     end
 end
 
-function Base.iterate(it::ByteMaskIter, state=nothing)
+function Base.iterate(it::ByteMaskIter, state = nothing)
     nxt = _bytemask_iter_next!(it)
     nxt === nothing && return nothing
     return (nxt, nothing)
@@ -616,7 +620,7 @@ end
 Base.IteratorSize(::Type{ByteMask}) = Base.HasLength()
 Base.eltype(::Type{ByteMask}) = UInt8
 Base.length(m::ByteMask) = count_bits(m)
-function Base.iterate(m::ByteMask, state::Int=0)
+function Base.iterate(m::ByteMask, state::Int = 0)
     # Walk without mutation (non-destructive)
     while state < 256
         if test_bit(m, UInt8(state))

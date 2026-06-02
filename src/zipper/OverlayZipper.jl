@@ -23,9 +23,9 @@ Virtual zipper over the union of two source tries.
 Mirrors `OverlayZipper<AV, BV, OutV, AZipper, BZipper, Mapping>`.
 """
 mutable struct OverlayZipper{VA, VB, VOut, ZA, ZB}
-    a       ::ZA                   # zipper over trie A
-    b       ::ZB                   # zipper over trie B
-    mapping ::Function             # (Union{Nothing,VA}, Union{Nothing,VB}) → Union{Nothing,VOut}
+    a       :: ZA                   # zipper over trie A
+    b       :: ZB                   # zipper over trie B
+    mapping :: Function             # (Union{Nothing,VA}, Union{Nothing,VB}) → Union{Nothing,VOut}
 end
 
 """
@@ -57,29 +57,34 @@ function OverlayZipper(a::ZA, b::ZB, mapping::Function) where {ZA, ZB}
 end
 
 # Helper to extract value type parameter from ReadZipperCore{V,A}
-_overlay_val_type(::Type{ReadZipperCore{V,A}}) where {V,A} = V
-_overlay_val_type(::Type{T}) where T = Any
+_overlay_val_type(::Type{ReadZipperCore{V, A}}) where {V, A} = V
+_overlay_val_type(::Type{T}) where {T} = Any
 
 # =====================================================================
 # Zipper interface
 # =====================================================================
 
-"""Value at the overlay cursor — the mapping function decides."""
+"""
+Value at the overlay cursor — the mapping function decides.
+"""
 function oz_val(oz::OverlayZipper)
     oz.mapping(zipper_val(oz.a), zipper_val(oz.b))
 end
 
 oz_is_val(oz::OverlayZipper) = oz_val(oz) !== nothing
 
-oz_path_exists(oz::OverlayZipper) =
-    zipper_path_exists(oz.a) || zipper_path_exists(oz.b)
+oz_path_exists(oz::OverlayZipper) = zipper_path_exists(oz.a) || zipper_path_exists(oz.b)
 
-"""Union of both child masks."""
+"""
+Union of both child masks.
+"""
 oz_child_mask(oz::OverlayZipper) = zipper_child_mask(oz.a) | zipper_child_mask(oz.b)
 
 oz_child_count(oz::OverlayZipper) = count_bits(oz_child_mask(oz))
 
-"""Path — both zippers are kept in sync so A's path is canonical."""
+"""
+Path — both zippers are kept in sync so A's path is canonical.
+"""
 oz_path(oz::OverlayZipper) = zipper_path(oz.a)
 
 """
@@ -130,7 +135,7 @@ end
 
 oz_descend_first_byte!(oz::OverlayZipper) = oz_descend_indexed_byte!(oz, 0)
 
-function oz_ascend!(oz::OverlayZipper, steps::Int=1)
+function oz_ascend!(oz::OverlayZipper, steps::Int = 1)
     zipper_ascend!(oz.a, steps) | zipper_ascend!(oz.b, steps)
 end
 
@@ -170,8 +175,8 @@ function oz_descend_until!(oz::OverlayZipper)
     desc_b = zipper_descend_until!(oz.b)
     path_a = zipper_path(oz.a)
     path_b = zipper_path(oz.b)
-    sub_a  = path_a[start_depth+1:end]
-    sub_b  = path_b[start_depth+1:end]
+    sub_a = path_a[(start_depth + 1):end]
+    sub_b = path_b[(start_depth + 1):end]
 
     !desc_a && !desc_b && return false
 
@@ -213,9 +218,9 @@ function oz_ascend_until!(oz::OverlayZipper)
     path_a = zipper_path(oz.a)
     path_b = zipper_path(oz.b)
     if depth_b > depth_a
-        zipper_descend_to!(oz.a, path_b[depth_a+1:end])
+        zipper_descend_to!(oz.a, path_b[(depth_a + 1):end])
     elseif depth_a > depth_b
-        zipper_descend_to!(oz.b, path_a[depth_b+1:end])
+        zipper_descend_to!(oz.b, path_a[(depth_b + 1):end])
     end
     true
 end
@@ -225,25 +230,25 @@ function oz_ascend_until_branch!(oz::OverlayZipper)
     depth_a = length(zipper_path(oz.a))
     asc_b   = zipper_ascend_until_branch!(oz.b)
     depth_b = length(zipper_path(oz.b))
-    path_a = zipper_path(oz.a)
-    path_b = zipper_path(oz.b)
+    path_a  = zipper_path(oz.a)
+    path_b  = zipper_path(oz.b)
     if depth_b > depth_a
-        zipper_descend_to!(oz.a, path_b[depth_a+1:end])
+        zipper_descend_to!(oz.a, path_b[(depth_a + 1):end])
     elseif depth_a > depth_b
-        zipper_descend_to!(oz.b, path_a[depth_b+1:end])
+        zipper_descend_to!(oz.b, path_a[(depth_b + 1):end])
     end
     asc_a || asc_b
 end
 
 function oz_descend_to_existing!(oz::OverlayZipper, path)
-    pv     = collect(UInt8, path)
+    pv = collect(UInt8, path)
     depth_a = zipper_descend_to_existing!(oz.a, pv)
     depth_b = zipper_descend_to_existing!(oz.b, pv)
     if depth_a > depth_b
-        zipper_descend_to!(oz.b, pv[depth_b+1:depth_a])
+        zipper_descend_to!(oz.b, pv[(depth_b + 1):depth_a])
         depth_a
     elseif depth_b > depth_a
-        zipper_descend_to!(oz.a, pv[depth_a+1:depth_b])
+        zipper_descend_to!(oz.a, pv[(depth_a + 1):depth_b])
         depth_b
     else
         depth_a
@@ -251,7 +256,7 @@ function oz_descend_to_existing!(oz::OverlayZipper, path)
 end
 
 function oz_descend_to_val!(oz::OverlayZipper, path)
-    pv     = collect(UInt8, path)
+    pv = collect(UInt8, path)
     depth_a = zipper_descend_to_val!(oz.a, pv)
     depth_b = zipper_descend_to_val!(oz.b, pv)
     if depth_a < depth_b
@@ -259,7 +264,7 @@ function oz_descend_to_val!(oz::OverlayZipper, path)
             zipper_ascend!(oz.b, depth_b - depth_a)
             depth_a
         else
-            zipper_descend_to!(oz.a, pv[depth_a+1:depth_b])
+            zipper_descend_to!(oz.a, pv[(depth_a + 1):depth_b])
             depth_b
         end
     elseif depth_b < depth_a
@@ -267,7 +272,7 @@ function oz_descend_to_val!(oz::OverlayZipper, path)
             zipper_ascend!(oz.a, depth_a - depth_b)
             depth_b
         else
-            zipper_descend_to!(oz.b, pv[depth_b+1:depth_a])
+            zipper_descend_to!(oz.b, pv[(depth_b + 1):depth_a])
             depth_a
         end
     else

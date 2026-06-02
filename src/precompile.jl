@@ -9,9 +9,9 @@ using PrecompileTools
 @compile_workload begin
     # ── Core PathMap ops ──────────────────────────────────────────────
     m = PathMap{Int32}()
-    set_val_at!(m, b"alpha",   Int32(1))
-    set_val_at!(m, b"beta",    Int32(2))
-    set_val_at!(m, b"gamma",   Int32(3))
+    set_val_at!(m, b"alpha", Int32(1))
+    set_val_at!(m, b"beta", Int32(2))
+    set_val_at!(m, b"gamma", Int32(3))
     set_val_at!(m, b"alpha:x", Int32(4))
     set_val_at!(m, b"alpha:y", Int32(5))
 
@@ -53,8 +53,10 @@ using PrecompileTools
     # ── Algebraic ops ─────────────────────────────────────────────────
     a = PathMap{Nothing}()
     b = PathMap{Nothing}()
-    set_val_at!(a, b"p", nothing); set_val_at!(a, b"q", nothing)
-    set_val_at!(b, b"q", nothing); set_val_at!(b, b"r", nothing)
+    set_val_at!(a, b"p", nothing);
+    set_val_at!(a, b"q", nothing)
+    set_val_at!(b, b"q", nothing);
+    set_val_at!(b, b"r", nothing)
 
     pjoin(a, b)
     pmeet(a, b)
@@ -81,25 +83,25 @@ using PrecompileTools
     wz_remove_prefix!(wz6, 3)
 
     # ── Morphisms ─────────────────────────────────────────────────────
-    cata_cached(m, (mask, children, val) ->
-        (val !== nothing ? 1 : 0) + reduce(+, children, init=0))
+    cata_cached(m, (mask, children, val) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
 
-    cata_side_effect(m, (mask, children, val, path) ->
-        (val !== nothing ? 1 : 0) + reduce(+, children, init=0))
+    cata_side_effect(m, (mask, children, val, path) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
 
-    cata_jumping_cached(m, (mask, children, val, sub) ->
-        (val !== nothing ? 1 : 0) + reduce(+, children, init=0))
+    cata_jumping_cached(m, (mask, children, val, sub) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
 
-    cata_hybrid_cached(m, (mask, children, val, sub, path) ->
-        ((val !== nothing ? 1 : 0) + reduce(+, children, init=0), 0))
+    cata_hybrid_cached(
+        m, (mask, children, val, sub, path) -> ((val !== nothing ? 1 : 0) + reduce(+, children, init = 0), 0)
+    )
 
     map_hash(m)
 
     # ── Policy API ───────────────────────────────────────────────────
     mf = PathMap{Float64}()
     mg = PathMap{Float64}()
-    set_val_at!(mf, b"x", 1.0); set_val_at!(mf, b"y", 2.0)
-    set_val_at!(mg, b"y", 3.0); set_val_at!(mg, b"z", 4.0)
+    set_val_at!(mf, b"x", 1.0);
+    set_val_at!(mf, b"y", 2.0)
+    set_val_at!(mg, b"y", 3.0);
+    set_val_at!(mg, b"z", 4.0)
 
     pjoin_policy(mf, mg, SumPolicy())
     pjoin_policy(mf, mg, MaxPolicy())
@@ -110,7 +112,7 @@ using PrecompileTools
     # ── Serialization ────────────────────────────────────────────────
     ms = PathMap{Nothing}()
     set_val_at!(ms, b"x:alpha", nothing)
-    set_val_at!(ms, b"x:beta",  nothing)
+    set_val_at!(ms, b"x:beta", nothing)
     io = IOBuffer()
     serialize_paths(ms, io)
     seekstart(io)

@@ -62,14 +62,14 @@ plane becomes `bob[1]`, the least significant becomes `bob[steps]`.
 
 Port of `pathmap::utils::indices_to_bob`.
 """
-function indices_to_bob!(bob::Vector{UInt8}, xs::AbstractVector{R}) where {R<:Unsigned}
+function indices_to_bob!(bob::Vector{UInt8}, xs::AbstractVector{R}) where {R <: Unsigned}
     @assert length(xs) <= 8
     num_size = sizeof(R)
     steps = isempty(xs) ? 0 : maximum(num_size*8 - leading_zeros(x) for x in xs)
-    for c in (steps-1):-1:0
+    for c in (steps - 1):-1:0
         push!(bob, UInt8(0))
-        for i in 0:(length(xs)-1)
-            bit = UInt8((xs[i+1] >> c) & one(R))
+        for i in 0:(length(xs) - 1)
+            bit = UInt8((xs[i + 1] >> c) & one(R))
             bob[end] |= bit << i
         end
     end
@@ -86,14 +86,14 @@ Asserts `length(xs) <= 8` and `length(bob) <= sizeof(eltype(xs))*8`.
 
 Port of `pathmap::utils::bob_to_indices`.
 """
-function bob_to_indices!(xs::AbstractVector{R}, bob::AbstractVector{UInt8}) where {R<:Unsigned}
+function bob_to_indices!(xs::AbstractVector{R}, bob::AbstractVector{UInt8}) where {R <: Unsigned}
     @assert length(xs) <= 8 && length(bob) <= sizeof(R)*8
-    for i in 0:(length(bob)-1)
-        for k in 0:(length(xs)-1)
-            xs[k+1] |= R((bob[i+1] >> k) & 0x1) << (length(bob) - 1 - i)
+    for i in 0:(length(bob) - 1)
+        for k in 0:(length(xs) - 1)
+            xs[k + 1] |= R((bob[i + 1] >> k) & 0x1) << (length(bob) - 1 - i)
         end
     end
-    return
+    return nothing
 end
 
 # =====================================================================
@@ -111,15 +111,13 @@ Port of `pathmap::utils::indices_to_weave`. Upstream takes
 `xs: &[usize]` regardless of the `PathInteger<NUM_SIZE>` phantom; here
 `num_size` is an explicit parameter because Julia lacks const generics.
 """
-function indices_to_weave!(weave::Vector{UInt8},
-                           xs::AbstractVector{<:Integer},
-                           num_size::Int)
-    for c in (num_size-1):-1:0
+function indices_to_weave!(weave::Vector{UInt8}, xs::AbstractVector{<:Integer}, num_size::Int)
+    for c in (num_size - 1):-1:0
         for i in eachindex(xs)
             push!(weave, UInt8((xs[i] >> (c*8)) & 0xFF))
         end
     end
-    return
+    return nothing
 end
 
 """
@@ -132,18 +130,17 @@ from `length(weave) ÷ length(xs)`.
 
 Port of `pathmap::utils::weave_to_indices`.
 """
-function weave_to_indices!(xs::AbstractVector{R},
-                           weave::AbstractVector{UInt8}) where {R<:Unsigned}
+function weave_to_indices!(xs::AbstractVector{R}, weave::AbstractVector{UInt8}) where {R <: Unsigned}
     n = length(xs)
-    n == 0 && return
+    n == 0 && return nothing
     @assert length(weave) % n == 0
     steps = length(weave) ÷ n
-    for c in (steps-1):-1:0
-        for i in 0:(n-1)
-            xs[i+1] |= R(weave[n*c + i + 1]) << (8*steps - (c+1)*8)
+    for c in (steps - 1):-1:0
+        for i in 0:(n - 1)
+            xs[i + 1] |= R(weave[n * c + i + 1]) << (8*steps - (c+1)*8)
         end
     end
-    return
+    return nothing
 end
 
 # =====================================================================

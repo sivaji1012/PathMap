@@ -56,7 +56,7 @@ MergeWith(f) = (v_self, v_src) -> f(v_self, v_src)
 
 Policy: `v_self + v_src`.  Requires `+` defined on `V`.
 """
-SumPolicy()  = MergeWith(+)
+SumPolicy() = MergeWith(+)
 
 """
     ProdPolicy() -> Function
@@ -70,14 +70,14 @@ ProdPolicy() = MergeWith(*)
 
 Policy: `min(v_self, v_src)`.  Requires `<` defined on `V`.
 """
-MinPolicy()  = MergeWith(min)
+MinPolicy() = MergeWith(min)
 
 """
     MaxPolicy() -> Function
 
 Policy: `max(v_self, v_src)`.  Requires `>` defined on `V`.
 """
-MaxPolicy()  = MergeWith(max)
+MaxPolicy() = MergeWith(max)
 
 # =====================================================================
 # _policy_join_recursive! — synchronised DFS core
@@ -90,9 +90,7 @@ MaxPolicy()  = MergeWith(max)
 #   - Only self has val → keep unchanged
 #   - src has children → recurse into each
 
-function _policy_join_recursive!(wz::WriteZipperCore{V,A},
-                                  rz::ReadZipperCore{V,A},
-                                  policy::F) where {V, A, F}
+function _policy_join_recursive!(wz::WriteZipperCore{V, A}, rz::ReadZipperCore{V, A}, policy::F) where {V, A, F}
     # --- value merge at current cursor position ---
     w_val = wz_get_val(wz)
     r_val = zipper_val(rz)
@@ -111,7 +109,7 @@ function _policy_join_recursive!(wz::WriteZipperCore{V,A},
 
     # --- recurse into every child byte present in src ---
     r_mask = zipper_child_mask(rz)
-    isempty(r_mask) && return
+    isempty(r_mask) && return nothing
 
     for byte in iter(r_mask)
         zipper_descend_to_byte!(rz, byte)
@@ -136,13 +134,12 @@ the `Lattice` trait.
 `policy` must be callable as `(v_self::V, v_src::V) -> Union{Nothing, V}`.
 
 Example — sum all values at coinciding paths:
+
 ```julia
 wz_join_policy!(wz, other, SumPolicy())
 ```
 """
-function wz_join_policy!(wz::WriteZipperCore{V,A},
-                          src::PathMap{V,A},
-                          policy) where {V,A}
+function wz_join_policy!(wz::WriteZipperCore{V, A}, src::PathMap{V, A}, policy) where {V, A}
     src.root === nothing && return nothing
     rz = read_zipper(src)
     _policy_join_recursive!(wz, rz, policy)
@@ -162,11 +159,12 @@ Return a new `PathMap` that is the join of `m1` and `m2`, using
 Paths present in only one map are copied as-is (structural join).
 
 Example — max over coinciding float values:
+
 ```julia
 result = pjoin_policy(counts_a, counts_b, MaxPolicy())
 ```
 """
-function pjoin_policy(m1::PathMap{V,A}, m2::PathMap{V,A}, policy) where {V,A}
+function pjoin_policy(m1::PathMap{V, A}, m2::PathMap{V, A}, policy) where {V, A}
     result = deepcopy(m1)
     m2.root === nothing && return result
     wz = write_zipper(result)

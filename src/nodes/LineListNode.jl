@@ -17,7 +17,9 @@ Slot ordering invariants (maintained by all mutating methods):
 # Constants
 # =====================================================================
 
-"""Maximum bytes available for inline key storage (non-slim_ptrs path)."""
+"""
+Maximum bytes available for inline key storage (non-slim_ptrs path).
+"""
 const KEY_BYTES_CNT = 14
 
 # =====================================================================
@@ -30,9 +32,9 @@ const KEY_BYTES_CNT = 14
 Compact 2-slot trie node. Corresponds to upstream `LineListNode<V,A>` plus
 its `TrieNode<V,A>` impl. Upgraded to `DenseByteNode` when a third slot is needed.
 """
-mutable struct LineListNode{V, A<:Allocator} <: AbstractTrieNode{V,A}
-    slot0::Union{Nothing, ValOrChild{V,A}}   # nothing = slot0 unused
-    slot1::Union{Nothing, ValOrChild{V,A}}   # nothing = slot1 unused
+mutable struct LineListNode{V, A <: Allocator} <: AbstractTrieNode{V, A}
+    slot0::Union{Nothing, ValOrChild{V, A}}   # nothing = slot0 unused
+    slot1::Union{Nothing, ValOrChild{V, A}}   # nothing = slot1 unused
     key0::Vector{UInt8}   # key for slot0; empty iff slot0 === nothing
     key1::Vector{UInt8}   # key for slot1; empty iff slot1 === nothing
     alloc::A
@@ -45,12 +47,12 @@ end
 """
     LineListNode{V,A}(alloc) → new empty node
 """
-function LineListNode(alloc::A) where {A<:Allocator}
+function LineListNode(alloc::A) where {A <: Allocator}
     error("LineListNode() requires explicit type parameters: LineListNode{V,A}(alloc)")
 end
 
-function LineListNode{V,A}(alloc::A) where {V, A<:Allocator}
-    LineListNode{V,A}(nothing, nothing, UInt8[], UInt8[], alloc)
+function LineListNode{V, A}(alloc::A) where {V, A <: Allocator}
+    LineListNode{V, A}(nothing, nothing, UInt8[], UInt8[], alloc)
 end
 
 # =====================================================================
@@ -98,12 +100,16 @@ does not consume the full KEY_BYTES_CNT, leaving room for at least one key byte.
     !is_used_1(n) && key_len_0(n) < KEY_BYTES_CNT
 end
 
-"""slot count in use (0, 1, or 2)."""
+"""
+slot count in use (0, 1, or 2).
+"""
 @inline function used_slot_count(n::LineListNode)::Int
     is_used_0(n) ? (is_used_1(n) ? 2 : 1) : 0
 end
 
-"""Returns (key0, key1) byte slices for both slots."""
+"""
+Returns (key0, key1) byte slices for both slots.
+"""
 @inline get_both_keys(n::LineListNode) = (n.key0, n.key1)
 
 # =====================================================================
@@ -133,7 +139,7 @@ end
 
 Removes and returns the payload from slot0, shifting slot1→slot0.
 """
-function take_slot0_payload!(n::LineListNode{V,A}) where {V,A}
+function take_slot0_payload!(n::LineListNode{V, A}) where {V, A}
     is_used_0(n) || return nothing
     payload = n.slot0
     shift_1_to_0!(n)
@@ -145,7 +151,7 @@ end
 
 Removes and returns the payload from slot1, leaving slot0 untouched.
 """
-function take_slot1_payload!(n::LineListNode{V,A}) where {V,A}
+function take_slot1_payload!(n::LineListNode{V, A}) where {V, A}
     is_used_1(n) || return nothing
     payload = n.slot1
     n.slot1 = nothing
@@ -158,7 +164,7 @@ end
 
 Replaces slot0's payload with `new_payload`, returning the old one.
 """
-function swap_slot0_payload!(n::LineListNode{V,A}, new_payload::ValOrChild{V,A}) where {V,A}
+function swap_slot0_payload!(n::LineListNode{V, A}, new_payload::ValOrChild{V, A}) where {V, A}
     @assert is_used_0(n)
     old = n.slot0
     n.slot0 = new_payload
@@ -170,7 +176,7 @@ end
 
 Replaces slot1's payload with `new_payload`, returning the old one.
 """
-function swap_slot1_payload!(n::LineListNode{V,A}, new_payload::ValOrChild{V,A}) where {V,A}
+function swap_slot1_payload!(n::LineListNode{V, A}, new_payload::ValOrChild{V, A}) where {V, A}
     @assert is_used_1(n)
     old = n.slot1
     n.slot1 = new_payload
@@ -180,14 +186,14 @@ end
 """
     clone_slot0_payload(n) → Union{Nothing, ValOrChild{V,A}}
 """
-function clone_slot0_payload(n::LineListNode{V,A}) where {V,A}
+function clone_slot0_payload(n::LineListNode{V, A}) where {V, A}
     is_used_0(n) ? deepcopy(n.slot0) : nothing
 end
 
 """
     clone_slot1_payload(n) → Union{Nothing, ValOrChild{V,A}}
 """
-function clone_slot1_payload(n::LineListNode{V,A}) where {V,A}
+function clone_slot1_payload(n::LineListNode{V, A}) where {V, A}
     is_used_1(n) ? deepcopy(n.slot1) : nothing
 end
 
@@ -200,7 +206,7 @@ end
 
 Sets slot0 with `key` (must fit in KEY_BYTES_CNT bytes), clears slot1.
 """
-function set_slot0!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, payload::ValOrChild{V,A}) where {V,A}
+function set_slot0!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}) where {V, A}
     @assert length(key) <= KEY_BYTES_CNT
     n.key0  = Vector{UInt8}(key)
     n.slot0 = payload
@@ -212,7 +218,7 @@ end
 Sets slot1 with `key` (remaining bytes must be available).
 Requires slot0 to already be set.
 """
-function set_slot1!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, payload::ValOrChild{V,A}) where {V,A}
+function set_slot1!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}) where {V, A}
     @assert length(n.key0) + length(key) <= KEY_BYTES_CNT
     n.key1  = Vector{UInt8}(key)
     n.slot1 = payload
@@ -229,7 +235,9 @@ end
 Sets slot0 payload. If `key` exceeds KEY_BYTES_CNT, creates continuation nodes.
 Returns true if a continuation node was created.
 """
-function set_slot0_no_overflow!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, payload::ValOrChild{V,A}) where {V,A}
+function set_slot0_no_overflow!(
+    n::LineListNode{V, A}, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}
+) where {V, A}
     if length(key) <= KEY_BYTES_CNT
         set_slot0!(n, key, payload)
         return false
@@ -237,12 +245,12 @@ function set_slot0_no_overflow!(n::LineListNode{V,A}, key::AbstractVector{UInt8}
     # Create a chain of intermediate nodes to hold the long key
     node_cnt = (length(key) - 1) ÷ KEY_BYTES_CNT
     child_key = key[(node_cnt * KEY_BYTES_CNT + 1):end]
-    child_node = LineListNode{V,A}(n.alloc)
+    child_node = LineListNode{V, A}(n.alloc)
     set_slot0!(child_node, child_key, payload)
     next_node = TrieNodeODRc(child_node, n.alloc)
-    for idx in (node_cnt-1):-1:1
-        mid_key = key[(idx*KEY_BYTES_CNT + 1):((idx+1)*KEY_BYTES_CNT)]
-        mid_node = LineListNode{V,A}(n.alloc)
+    for idx in (node_cnt - 1):-1:1
+        mid_key = key[(idx * KEY_BYTES_CNT + 1):((idx + 1) * KEY_BYTES_CNT)]
+        mid_node = LineListNode{V, A}(n.alloc)
         set_slot0!(mid_node, mid_key, ValOrChild(next_node))
         next_node = TrieNodeODRc(mid_node, n.alloc)
     end
@@ -258,7 +266,9 @@ Sets slot1 payload. If `key` doesn't fit in remaining KEY_BYTES_CNT space,
 creates a continuation chain. Handles the split-if-full case.
 Returns true if a continuation node was created.
 """
-function set_slot1_no_overflow!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, payload::ValOrChild{V,A}) where {V,A}
+function set_slot1_no_overflow!(
+    n::LineListNode{V, A}, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}
+) where {V, A}
     @assert !is_used_1(n)
     if is_available_1(n)
         remaining = KEY_BYTES_CNT - key_len_0(n)
@@ -267,8 +277,8 @@ function set_slot1_no_overflow!(n::LineListNode{V,A}, key::AbstractVector{UInt8}
             return false
         else
             # Key overflows slot1; create a child node for the tail
-            child_node = LineListNode{V,A}(n.alloc)
-            set_slot0_no_overflow!(child_node, key[(remaining+1):end], payload)
+            child_node = LineListNode{V, A}(n.alloc)
+            set_slot0_no_overflow!(child_node, key[(remaining + 1):end], payload)
             child_rc = TrieNodeODRc(child_node, n.alloc)
             set_slot1!(n, key[1:remaining], ValOrChild(child_rc))
             return true
@@ -287,22 +297,23 @@ end
 Shifts current slot0 into slot1 and places `(key, payload)` into slot0.
 Returns true if a continuation node was created.
 """
-function set_slot0_shift_existing!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, payload::ValOrChild{V,A}) where {V,A}
+function set_slot0_shift_existing!(
+    n::LineListNode{V, A}, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}
+) where {V, A}
     @assert is_used_0(n) && !is_used_1(n)
     if is_available_1(n)
-        old_key    = copy(n.key0)
+        old_key = copy(n.key0)
         old_payload = n.slot0
-        remaining  = KEY_BYTES_CNT - length(old_key)
-        new_key_final, new_payload_final, created =
-            if length(key) <= remaining
-                (key, payload, false)
-            else
-                # tail of new key needs a continuation node
-                child_node = LineListNode{V,A}(n.alloc)
-                set_slot0_no_overflow!(child_node, key[(remaining+1):end], payload)
-                child_rc = TrieNodeODRc(child_node, n.alloc)
-                (view(key, 1:remaining), ValOrChild(child_rc), true)
-            end
+        remaining = KEY_BYTES_CNT - length(old_key)
+        new_key_final, new_payload_final, created = if length(key) <= remaining
+            (key, payload, false)
+        else
+            # tail of new key needs a continuation node
+            child_node = LineListNode{V, A}(n.alloc)
+            set_slot0_no_overflow!(child_node, key[(remaining + 1):end], payload)
+            child_rc = TrieNodeODRc(child_node, n.alloc)
+            (view(key, 1:remaining), ValOrChild(child_rc), true)
+        end
         # write key for slot0 (new key) then key for slot1 (old key)
         n.key0  = Vector{UInt8}(new_key_final)
         n.slot0 = new_payload_final
@@ -327,11 +338,11 @@ Splits the key in slot0 at `idx` (exclusive length). The suffix `key0[idx+1:]`
 remains in slot0 under a new child node; the prefix `key0[1:idx]` becomes the
 new slot0 key pointing at that child.
 """
-function split_slot0!(n::LineListNode{V,A}, idx::Int) where {V,A}
+function split_slot0!(n::LineListNode{V, A}, idx::Int) where {V, A}
     old_key     = n.key0
     old_payload = n.slot0
-    child_node  = LineListNode{V,A}(n.alloc)
-    set_slot0!(child_node, old_key[(idx+1):end], old_payload)
+    child_node  = LineListNode{V, A}(n.alloc)
+    set_slot0!(child_node, old_key[(idx + 1):end], old_payload)
     child_rc = TrieNodeODRc(child_node, n.alloc)
     # Shift slot1 key to follow the new shorter slot0 key
     if is_used_1(n)
@@ -350,14 +361,14 @@ end
 Splits the key in slot1 at `idx`. The suffix remains in the new slot1 under a
 child node; slot1's key becomes the prefix pointing at that child.
 """
-function split_slot1!(n::LineListNode{V,A}, idx::Int) where {V,A}
+function split_slot1!(n::LineListNode{V, A}, idx::Int) where {V, A}
     @assert is_used_1(n)
     old_key     = n.key1
     old_payload = n.slot1
-    child_node  = LineListNode{V,A}(n.alloc)
-    set_slot0!(child_node, old_key[(idx+1):end], old_payload)
+    child_node  = LineListNode{V, A}(n.alloc)
+    set_slot0!(child_node, old_key[(idx + 1):end], old_payload)
     child_rc = TrieNodeODRc(child_node, n.alloc)
-    n.key1  = old_key[1:idx]
+    n.key1 = old_key[1:idx]
     n.slot1 = ValOrChild(child_rc)
 end
 
@@ -387,7 +398,7 @@ end
 If any slot holds a sentinel empty-node child whose key is a prefix of `key`,
 remove that dangling entry.
 """
-function remove_dangling_payload_along_key!(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function remove_dangling_payload_along_key!(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     if is_child_0(n)
         child_rc = into_child(n.slot0)
         if is_empty_node(child_rc) && slice_starts_with(key, n.key0)
@@ -413,7 +424,7 @@ Returns `(consumed_bytes, slot_index)` for the first slot whose key is a
 prefix of `key` and whose payload is a non-empty child, or `nothing`.
 In Julia we can't return a mutable ref, so callers use the slot index.
 """
-function _find_child_slot(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function _find_child_slot(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     if is_child_0(n)
         klen = key_len_0(n)
         if length(key) >= klen && key[1:klen] == n.key0
@@ -436,20 +447,20 @@ end
 # (mirrors Rust's `clone_with_updated_payloads`)
 # =====================================================================
 
-function clone_with_updated_payloads(n::LineListNode{V,A},
-                                      payload0::Union{Nothing, ValOrChild{V,A}},
-                                      payload1::Union{Nothing, ValOrChild{V,A}}) where {V,A}
+function clone_with_updated_payloads(
+    n::LineListNode{V, A}, payload0::Union{Nothing, ValOrChild{V, A}}, payload1::Union{Nothing, ValOrChild{V, A}}
+) where {V, A}
     if payload0 !== nothing && payload1 !== nothing
-        new_n = LineListNode{V,A}(n.alloc)
+        new_n = LineListNode{V, A}(n.alloc)
         set_slot0!(new_n, n.key0, payload0)
         set_slot1!(new_n, n.key1, payload1)
         return new_n
     elseif payload0 !== nothing
-        new_n = LineListNode{V,A}(n.alloc)
+        new_n = LineListNode{V, A}(n.alloc)
         set_slot0!(new_n, n.key0, payload0)
         return new_n
     elseif payload1 !== nothing
-        new_n = LineListNode{V,A}(n.alloc)
+        new_n = LineListNode{V, A}(n.alloc)
         set_slot0!(new_n, n.key1, payload1)   # slot1 → slot0 in the new single-slot node
         return new_n
     else
@@ -483,25 +494,32 @@ function validate_list_node(n::LineListNode)::Bool
     is_used_0(n) && isempty(k0) && (println("Invalid: zero-length key0 $(n)"); return false)
     is_used_1(n) && isempty(k1) && (println("Invalid: zero-length key1 $(n)"); return false)
     if is_child_0(n) && is_used_1(n) && slice_starts_with(k1, k0) && length(k1) > length(k0)
-        println("Invalid: ambiguous path violation"); return false
+        println("Invalid: ambiguous path violation");
+        return false
     end
     if is_used_1(n) && length(k0) > length(k1) && slice_starts_with(k0, k1)
-        println("Invalid: ordering violation"); return false
+        println("Invalid: ordering violation");
+        return false
     end
     if length(k0) >= 2 && length(k1) >= 2 && k0[1] == k1[1] && k0[2] == k1[2]
-        println("Invalid: prefix too long (>1 byte)"); return false
+        println("Invalid: prefix too long (>1 byte)");
+        return false
     end
     if !is_used_1(n) && is_child_1(n)
-        println("Invalid: slot1 child bit set while slot1 empty"); return false
+        println("Invalid: slot1 child bit set while slot1 empty");
+        return false
     end
     if length(k0) + length(k1) > KEY_BYTES_CNT
-        println("Invalid: key lengths exceed KEY_BYTES_CNT"); return false
+        println("Invalid: key lengths exceed KEY_BYTES_CNT");
+        return false
     end
     if length(k0) == KEY_BYTES_CNT && is_used_1(n)
-        println("Invalid: slot0 saturates key storage but slot1 is filled"); return false
+        println("Invalid: slot0 saturates key storage but slot1 is filled");
+        return false
     end
     if is_used_1(n) && k0 > k1
-        println("Invalid: keys not sorted"); return false
+        println("Invalid: keys not sorted");
+        return false
     end
     true
 end
@@ -517,8 +535,8 @@ Creates a DenseByteNode containing all entries from `n` and returns it as a
 new `TrieNodeODRc`. Ports the `convert_to_dense` path in upstream. Called
 when a third slot is required and the two existing slots cannot share a key.
 """
-function _convert_to_dense!(n::LineListNode{V,A}, capacity::Int) where {V,A}
-    dense = DenseByteNode{V,A}(n.alloc, capacity)   # upstream: with_capacity_in(capacity, alloc)
+function _convert_to_dense!(n::LineListNode{V, A}, capacity::Int) where {V, A}
+    dense = DenseByteNode{V, A}(n.alloc, capacity)   # upstream: with_capacity_in(capacity, alloc)
     merge_from_list_node!(dense, n)
     TrieNodeODRc(dense, n.alloc)
 end
@@ -527,15 +545,16 @@ end
 # remove_subtries! (used by node_remove_all_branches! + node_remove_unmasked_branches!)
 # =====================================================================
 
-function remove_subtries!(n::LineListNode{V,A}, remove_0::Bool, remove_1::Bool,
-                           key0_starts_with::Bool, prune::Bool, key_len::Int) where {V,A}
+function remove_subtries!(
+    n::LineListNode{V, A}, remove_0::Bool, remove_1::Bool, key0_starts_with::Bool, prune::Bool, key_len::Int
+) where {V, A}
     # Process slot1 first to avoid shifting interference
     if remove_1
         if prune || key0_starts_with || key_len == 0
             take_slot1_payload!(n)
         else
             shorten_key_1!(n, key_len)
-            n.slot1 = ValOrChild(TrieNodeODRc{V,A}())   # empty sentinel
+            n.slot1 = ValOrChild(TrieNodeODRc{V, A}())   # empty sentinel
         end
     end
     if remove_0
@@ -543,7 +562,7 @@ function remove_subtries!(n::LineListNode{V,A}, remove_0::Bool, remove_1::Bool,
             take_slot0_payload!(n)
         else
             shorten_key_0!(n, key_len)
-            n.slot0 = ValOrChild(TrieNodeODRc{V,A}())   # empty sentinel
+            n.slot0 = ValOrChild(TrieNodeODRc{V, A}())   # empty sentinel
         end
     end
 end
@@ -557,45 +576,45 @@ end
 # Julia mapping: return a NamedTuple distinguishing success vs. upgrade
 # =====================================================================
 
-abstract type AbstractSetPayloadResult{V,A} end
-struct SetPayloadOk{V,A}       <: AbstractSetPayloadResult{V,A}
+abstract type AbstractSetPayloadResult{V, A} end
+struct SetPayloadOk{V, A} <: AbstractSetPayloadResult{V, A}
     old_payload::Union{Nothing, V}   # replaced value (nothing if new insert or IS_CHILD)
     created_subnode::Bool
 end
-struct SetPayloadUpgrade{V,A}  <: AbstractSetPayloadResult{V,A}
-    replacement::TrieNodeODRc{V,A}
+struct SetPayloadUpgrade{V, A} <: AbstractSetPayloadResult{V, A}
+    replacement::TrieNodeODRc{V, A}
 end
 
 """
     set_payload_abstract!(n, is_child, key, payload) → AbstractSetPayloadResult
 
 Inserts `(key, payload)` into the node:
-- If the key exactly replaces an existing entry: Ok(old, false)
-- If a new slot or sub-node was created: Ok(nothing, bool)
-- If both slots are full and no key overlap → upgrade needed: Upgrade(new_dense_rc)
+
+  - If the key exactly replaces an existing entry: Ok(old, false)
+  - If a new slot or sub-node was created: Ok(nothing, bool)
+  - If both slots are full and no key overlap → upgrade needed: Upgrade(new_dense_rc)
 """
-function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
-                                key::AbstractVector{UInt8},
-                                payload::ValOrChild{V,A}) where {V,A}
+function set_payload_abstract!(
+    n::LineListNode{V, A}, is_child::Bool, key::AbstractVector{UInt8}, payload::ValOrChild{V, A}
+) where {V, A}
     @assert !isempty(key)
 
     # Recursively set in a child slot
-    function set_recursive(child_rc::TrieNodeODRc{V,A}, sub_key::AbstractVector{UInt8})
+    function set_recursive(child_rc::TrieNodeODRc{V, A}, sub_key::AbstractVector{UInt8})
         child = as_tagged(child_rc)
         if is_child
             inner_rc = into_child(payload)
             res = node_set_branch!(child, sub_key, inner_rc)
             # node_set_branch! returns Bool on success or TrieNodeODRc on upgrade
-            return res isa TrieNodeODRc ? SetPayloadUpgrade{V,A}(res) :
-                                          SetPayloadOk{V,A}(nothing, res)
+            return res isa TrieNodeODRc ? SetPayloadUpgrade{V, A}(res) : SetPayloadOk{V, A}(nothing, res)
         else
             val = into_val(payload)
             r2 = node_set_val!(child, sub_key, val)
             if r2 isa TrieNodeODRc
-                return SetPayloadUpgrade{V,A}(r2)
+                return SetPayloadUpgrade{V, A}(r2)
             else
                 (old_val, _) = r2
-                return SetPayloadOk{V,A}(old_val, true)
+                return SetPayloadOk{V, A}(old_val, true)
             end
         end
     end
@@ -604,20 +623,20 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
     if is_child
         if is_child_0(n) && n.key0 == key
             old = swap_slot0_payload!(n, payload)
-            return SetPayloadOk{V,A}(nothing, false)
+            return SetPayloadOk{V, A}(nothing, false)
         end
         if is_child_1(n) && n.key1 == key
             old = swap_slot1_payload!(n, payload)
-            return SetPayloadOk{V,A}(nothing, false)
+            return SetPayloadOk{V, A}(nothing, false)
         end
     else
         if is_value_0(n) && n.key0 == key
             old = swap_slot0_payload!(n, payload)
-            return SetPayloadOk{V,A}(into_val(old), false)
+            return SetPayloadOk{V, A}(into_val(old), false)
         end
         if is_value_1(n) && n.key1 == key
             old = swap_slot1_payload!(n, payload)
-            return SetPayloadOk{V,A}(into_val(old), false)
+            return SetPayloadOk{V, A}(into_val(old), false)
         end
     end
 
@@ -627,7 +646,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
     # Slot0 is empty → just insert
     if !is_used_0(n)
         created = set_slot0_no_overflow!(n, key, payload)
-        return SetPayloadOk{V,A}(nothing, created)
+        return SetPayloadOk{V, A}(nothing, created)
     end
 
     # Check overlap with slot0 key
@@ -647,7 +666,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
             split_slot0!(n, overlap)
             child_rc = into_child(n.slot0)
             child_mut = as_tagged(child_rc)
-            return set_recursive(child_rc, key[(overlap+1):end])
+            return set_recursive(child_rc, key[(overlap + 1):end])
         end
     end
 
@@ -658,7 +677,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
         else
             set_slot1_no_overflow!(n, key, payload)
         end
-        return SetPayloadOk{V,A}(nothing, created)
+        return SetPayloadOk{V, A}(nothing, created)
     end
 
     # Check overlap with slot1 key
@@ -675,7 +694,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
         if overlap1 > 0
             split_slot1!(n, overlap1)
             child_rc = into_child(n.slot1)
-            return set_recursive(child_rc, key[(overlap1+1):end])
+            return set_recursive(child_rc, key[(overlap1 + 1):end])
         end
     end
 
@@ -683,11 +702,11 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
     # The upgrade node must include the NEW (key, payload) entry, mirroring
     # Rust's set_payload_abstract upgrade block (line_list_node.rs:1013-1040).
     dense_rc   = _convert_to_dense!(n, 3)
-    dense_node = as_tagged(dense_rc)::DenseByteNode{V,A}
-    k0 = key[1]
+    dense_node = as_tagged(dense_rc)::DenseByteNode{V, A}
+    k0         = key[1]
     if length(key) > 1
         # Wrap the tail in a new LineListNode child
-        child = LineListNode{V,A}(n.alloc)
+        child = LineListNode{V, A}(n.alloc)
         sub_key = key[2:end]
         if is_child
             inner_rc = into_child(payload)
@@ -706,7 +725,7 @@ function set_payload_abstract!(n::LineListNode{V,A}, is_child::Bool,
             _bn_set_val!(dense_node, k0, into_val(payload))
         end
     end
-    SetPayloadUpgrade{V,A}(dense_rc)
+    SetPayloadUpgrade{V, A}(dense_rc)
 end
 
 # =====================================================================
@@ -722,7 +741,7 @@ function node_contains_partial_key(n::LineListNode, key::AbstractVector{UInt8})
     slice_starts_with(n.key0, key) || slice_starts_with(n.key1, key)
 end
 
-function node_get_child(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_get_child(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     # Mirrors upstream node_get_child: returns child even if empty (dangling).
     # Empty (dangling) children represent structural path bookmarks created by
     # wz_create_path! — they must be traversable for path_exists_at to work.
@@ -741,17 +760,17 @@ function node_get_child(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where 
     nothing
 end
 
-function node_get_child_mut(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_get_child_mut(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     node_get_child(n, key)   # Julia: no mutable reference distinction; same semantics
 end
 
-function node_replace_child!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V,A}) where {V,A}
+function node_replace_child!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V, A}) where {V, A}
     if is_child_0(n)
         klen = key_len_0(n)
         if length(key) >= klen && key[1:klen] == n.key0
             @assert klen == length(key)
             n.slot0 = ValOrChild(new_rc)
-            return
+            return nothing
         end
     end
     if is_child_1(n)
@@ -759,13 +778,13 @@ function node_replace_child!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, n
         if length(key) >= klen && key[1:klen] == n.key1
             @assert klen == length(key)
             n.slot1 = ValOrChild(new_rc)
-            return
+            return nothing
         end
     end
     error("LineListNode::node_replace_child! — child key not found")
 end
 
-function node_get_payloads(n::LineListNode{V,A}, keys_expect_val, results_buf) where {V,A}
+function node_get_payloads(n::LineListNode{V, A}, keys_expect_val, results_buf) where {V, A}
     slot0_requested = !is_used_0(n)
     slot1_requested = !is_used_1(n)
     (k0, k1) = get_both_keys(n)
@@ -775,12 +794,12 @@ function node_get_payloads(n::LineListNode{V,A}, keys_expect_val, results_buf) w
             if is_child_0(n)
                 if !expect_val || klen < length(key)
                     slot0_requested = true
-                    results_buf[i] = (klen, PayloadRef{V,A}(0x2, nothing, into_child(n.slot0)))
+                    results_buf[i] = (klen, PayloadRef{V, A}(0x2, nothing, into_child(n.slot0)))
                 end
             else
                 if expect_val && klen == length(key)
                     slot0_requested = true
-                    results_buf[i] = (klen, PayloadRef{V,A}(0x1, Ref{V}(into_val(n.slot0)), nothing))
+                    results_buf[i] = (klen, PayloadRef{V, A}(0x1, Ref{V}(into_val(n.slot0)), nothing))
                 end
             end
         end
@@ -789,12 +808,12 @@ function node_get_payloads(n::LineListNode{V,A}, keys_expect_val, results_buf) w
             if is_child_1(n)
                 if !expect_val || klen < length(key)
                     slot1_requested = true
-                    results_buf[i] = (klen, PayloadRef{V,A}(0x2, nothing, into_child(n.slot1)))
+                    results_buf[i] = (klen, PayloadRef{V, A}(0x2, nothing, into_child(n.slot1)))
                 end
             else
                 if expect_val && klen == length(key)
                     slot1_requested = true
-                    results_buf[i] = (klen, PayloadRef{V,A}(0x1, Ref{V}(into_val(n.slot1)), nothing))
+                    results_buf[i] = (klen, PayloadRef{V, A}(0x1, Ref{V}(into_val(n.slot1)), nothing))
                 end
             end
         end
@@ -806,13 +825,13 @@ function node_contains_val(n::LineListNode, key::AbstractVector{UInt8})
     (is_value_0(n) && n.key0 == key) || (is_value_1(n) && n.key1 == key)
 end
 
-function node_get_val(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_get_val(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     is_value_0(n) && n.key0 == key && return into_val(n.slot0)
     is_value_1(n) && n.key1 == key && return into_val(n.slot1)
     nothing
 end
 
-function node_get_val_mut(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_get_val_mut(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     node_get_val(n, key)   # Julia: no mutable reference distinction
 end
 
@@ -822,7 +841,7 @@ end
 Returns `(old_val::Union{Nothing,V}, created_subnode::Bool)` on success,
 or a `TrieNodeODRc` replacement node when upgrade to DenseByteNode is needed.
 """
-function node_set_val!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, val::V) where {V,A}
+function node_set_val!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, val::V) where {V, A}
     @assert !isempty(key)
     res = set_payload_abstract!(n, false, key, ValOrChild(val))
     if res isa SetPayloadOk
@@ -832,7 +851,7 @@ function node_set_val!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, val::V)
     end
 end
 
-function node_remove_val!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, prune::Bool) where {V,A}
+function node_remove_val!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
     if is_value_0(n)
         k0 = n.key0
         if k0 == key
@@ -845,7 +864,7 @@ function node_remove_val!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, prun
                 if length(k0) == overlap
                     return into_val(take_slot0_payload!(n))
                 else
-                    old = swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+                    old = swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
                     return into_val(old)
                 end
             end
@@ -855,7 +874,7 @@ function node_remove_val!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, prun
         if prune
             return into_val(take_slot1_payload!(n))
         else
-            old = swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+            old = swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
             return into_val(old)
         end
     end
@@ -868,10 +887,10 @@ end
 Creates a sentinel empty-node child at `key` if the key is not already present.
 Returns `(was_created::Bool, created_subnode::Bool)` or a replacement node.
 """
-function node_create_dangling!(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_create_dangling!(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     @assert !isempty(key)
     if !node_contains_partial_key(n, key)
-        res = set_payload_abstract!(n, true, key, ValOrChild(TrieNodeODRc{V,A}()))
+        res = set_payload_abstract!(n, true, key, ValOrChild(TrieNodeODRc{V, A}()))
         if res isa SetPayloadOk
             return (true, res.created_subnode)
         else
@@ -881,7 +900,7 @@ function node_create_dangling!(n::LineListNode{V,A}, key::AbstractVector{UInt8})
     (false, false)
 end
 
-function node_remove_dangling!(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function node_remove_dangling!(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     @assert !isempty(key)
     (k0, k1) = get_both_keys(n)
     if is_child_0(n) && k0 == key
@@ -916,7 +935,7 @@ end
 
 Returns `created_subnode::Bool` on success, or replacement node on upgrade.
 """
-function node_set_branch!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V,A}) where {V,A}
+function node_set_branch!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V, A}) where {V, A}
     res = set_payload_abstract!(n, true, key, ValOrChild(new_rc))
     if res isa SetPayloadOk
         return res.created_subnode
@@ -925,7 +944,7 @@ function node_set_branch!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, new_
     end
 end
 
-function node_remove_all_branches!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, prune::Bool) where {V,A}
+function node_remove_all_branches!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
     klen = length(key)
     (k0, k1) = get_both_keys(n)
     k0sw = slice_starts_with(k0, key)
@@ -935,18 +954,19 @@ function node_remove_all_branches!(n::LineListNode{V,A}, key::AbstractVector{UIn
     remove_0 || remove_1
 end
 
-function node_remove_unmasked_branches!(n::LineListNode{V,A}, key::AbstractVector{UInt8},
-                                         mask::ByteMask, prune::Bool) where {V,A}
+function node_remove_unmasked_branches!(
+    n::LineListNode{V, A}, key::AbstractVector{UInt8}, mask::ByteMask, prune::Bool
+) where {V, A}
     klen = length(key)
     (k0, k1) = get_both_keys(n)
     remove_0 = false
     remove_1 = false
     k0sw = slice_starts_with(k0, key)
     if k0sw && length(k0) > klen
-        remove_0 = !test_bit(mask, k0[klen+1])
+        remove_0 = !test_bit(mask, k0[klen + 1])
     end
     if slice_starts_with(k1, key) && length(k1) > klen
-        remove_1 = !test_bit(mask, k1[klen+1])
+        remove_1 = !test_bit(mask, k1[klen + 1])
     end
     remove_subtries!(n, remove_0, remove_1, k0sw, prune, klen)
 end
@@ -973,7 +993,7 @@ function iter_token_for_path(n::LineListNode, key::AbstractVector{UInt8})
     NODE_ITER_FINISHED
 end
 
-function next_items(n::LineListNode{V,A}, token::UInt128) where {V,A}
+function next_items(n::LineListNode{V, A}, token::UInt128) where {V, A}
     if token == UInt128(0)
         !is_used_0(n) && return (NODE_ITER_FINISHED, UInt8[], nothing, nothing)
         (k0, k1) = get_both_keys(n)
@@ -1018,7 +1038,7 @@ end
 # node_val_count / node_goat_val_count
 # =====================================================================
 
-function node_val_count(n::LineListNode, cache::Dict{UInt64,Int})
+function node_val_count(n::LineListNode, cache::Dict{UInt64, Int})
     result = 0
     is_value_0(n) && (result += 1)
     is_value_1(n) && (result += 1)
@@ -1042,13 +1062,13 @@ end
 # child iterator
 # =====================================================================
 
-function node_child_iter_start(n::LineListNode{V,A}) where {V,A}
+function node_child_iter_start(n::LineListNode{V, A}) where {V, A}
     is_child_0(n) && return (UInt64(1), into_child(n.slot0))
     is_child_1(n) && return (UInt64(2), into_child(n.slot1))
     (UInt64(0), nothing)
 end
 
-function node_child_iter_next(n::LineListNode{V,A}, token::UInt64) where {V,A}
+function node_child_iter_next(n::LineListNode{V, A}, token::UInt64) where {V, A}
     token == UInt64(1) && is_child_1(n) && return (UInt64(2), into_child(n.slot1))
     (UInt64(0), nothing)
 end
@@ -1069,24 +1089,24 @@ end
 # nth_child_from_key
 # =====================================================================
 
-function nth_child_from_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}, idx::Int) where {V,A}
+function nth_child_from_key(n::LineListNode{V, A}, key::AbstractVector{UInt8}, idx::Int) where {V, A}
     (k0, k1) = get_both_keys(n)
     klen = length(key)
     if idx == 0
         if slice_starts_with(k0, key) && length(k0) > klen
             if k0 != k1
                 if klen + 1 == length(k0) && is_child_0(n)
-                    return (k0[klen+1], as_tagged(into_child(n.slot0)))
+                    return (k0[klen + 1], as_tagged(into_child(n.slot0)))
                 else
-                    return (k0[klen+1], nothing)
+                    return (k0[klen + 1], nothing)
                 end
             end
         end
         if slice_starts_with(k1, key) && length(k1) > klen
             if klen + 1 == length(k1) && is_child_1(n)
-                return (k1[klen+1], as_tagged(into_child(n.slot1)))
+                return (k1[klen + 1], as_tagged(into_child(n.slot1)))
             else
-                return (k1[klen+1], nothing)
+                return (k1[klen + 1], nothing)
             end
         end
     elseif idx == 1
@@ -1095,7 +1115,7 @@ function nth_child_from_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}, id
             if !isempty(k1)
                 (!isempty(k0) && k0[1] == k1[1]) && return (nothing, nothing)
                 if length(k1) == 1 && is_child_1(n)
-                    return (k1[klen+1], as_tagged(into_child(n.slot1)))
+                    return (k1[klen + 1], as_tagged(into_child(n.slot1)))
                 else
                     return (k1[1], nothing)
                 end
@@ -1109,7 +1129,7 @@ end
 # first_child_from_key
 # =====================================================================
 
-function first_child_from_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function first_child_from_key(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     (k0, k1) = get_both_keys(n)
     !is_used_0(n) && return (nothing, nothing)
 
@@ -1152,7 +1172,7 @@ function first_child_from_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}) 
 
     # Case 4: key is a prefix of k0
     if slice_starts_with(k0, key)
-        rem = k0[(length(key)+1):end]
+        rem = k0[(length(key) + 1):end]
         if is_child_0(n)
             return (rem, as_tagged(into_child(n.slot0)))
         else
@@ -1162,7 +1182,7 @@ function first_child_from_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}) 
 
     # Case 5: key is a prefix of k1
     if slice_starts_with(k1, key)
-        rem = k1[(length(key)+1):end]
+        rem = k1[(length(key) + 1):end]
         if is_child_1(n)
             return (rem, as_tagged(into_child(n.slot1)))
         else
@@ -1180,8 +1200,8 @@ end
 function count_branches(n::LineListNode, key::AbstractVector{UInt8})
     klen = length(key)
     (k0, k1) = get_both_keys(n)
-    c0 = (length(k0) > klen && slice_starts_with(k0, key)) ? k0[klen+1] : nothing
-    c1 = (length(k1) > klen && slice_starts_with(k1, key)) ? k1[klen+1] : nothing
+    c0 = (length(k0) > klen && slice_starts_with(k0, key)) ? k0[klen + 1] : nothing
+    c1 = (length(k1) > klen && slice_starts_with(k1, key)) ? k1[klen + 1] : nothing
     if c0 === nothing && c1 === nothing
         return 0
     elseif c0 === nothing || c1 === nothing
@@ -1195,10 +1215,10 @@ function node_branches_mask(n::LineListNode, key::AbstractVector{UInt8})
     (k0, k1) = get_both_keys(n)
     m = ByteMask()
     if length(k0) > length(key) && slice_starts_with(k0, key)
-        m = set(m, k0[length(key)+1])
+        m = set(m, k0[length(key) + 1])
     end
     if length(k1) > length(key) && slice_starts_with(k1, key)
-        m = set(m, k1[length(key)+1])
+        m = set(m, k1[length(key) + 1])
     end
     m
 end
@@ -1224,7 +1244,7 @@ end
 # get_sibling_of_child
 # =====================================================================
 
-function get_sibling_of_child(n::LineListNode{V,A}, key::AbstractVector{UInt8}, next::Bool) where {V,A}
+function get_sibling_of_child(n::LineListNode{V, A}, key::AbstractVector{UInt8}, next::Bool) where {V, A}
     @assert !isempty(key)
     last_idx = length(key) - 1
     common_key = key[1:last_idx]
@@ -1265,42 +1285,42 @@ end
 # get_node_at_key
 # =====================================================================
 
-function get_node_at_key(n::LineListNode{V,A}, key::AbstractVector{UInt8}) where {V,A}
+function get_node_at_key(n::LineListNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
     # Zero-length key → return this node
     if isempty(key)
-        return node_is_empty(n) ? ANRNone{V,A}() : ANRBorrowedDyn{V,A}(n)
+        return node_is_empty(n) ? ANRNone{V, A}() : ANRBorrowedDyn{V, A}(n)
     end
     (k0, k1) = get_both_keys(n)
     # Exact match → return the child rc
     if is_child_0(n) && k0 == key
-        return ANRBorrowedRc{V,A}(into_child(n.slot0))
+        return ANRBorrowedRc{V, A}(into_child(n.slot0))
     end
     if is_child_1(n) && k1 == key
-        return ANRBorrowedRc{V,A}(into_child(n.slot1))
+        return ANRBorrowedRc{V, A}(into_child(n.slot1))
     end
     # Partial match → construct sub-node
     if length(k0) > length(key) && slice_starts_with(k0, key)
-        new_key = k0[(length(key)+1):end]
-        new_n = LineListNode{V,A}(n.alloc)
+        new_key = k0[(length(key) + 1):end]
+        new_n = LineListNode{V, A}(n.alloc)
         p0 = clone_slot0_payload(n)
         p0 !== nothing && set_slot0_no_overflow!(new_n, new_key, p0)
-        return ANROwnedRc{V,A}(TrieNodeODRc(new_n, n.alloc))
+        return ANROwnedRc{V, A}(TrieNodeODRc(new_n, n.alloc))
     end
     if length(k1) > length(key) && slice_starts_with(k1, key)
-        new_key = k1[(length(key)+1):end]
-        new_n = LineListNode{V,A}(n.alloc)
+        new_key = k1[(length(key) + 1):end]
+        new_n = LineListNode{V, A}(n.alloc)
         p1 = clone_slot1_payload(n)
         p1 !== nothing && set_slot0_no_overflow!(new_n, new_key, p1)
-        return ANROwnedRc{V,A}(TrieNodeODRc(new_n, n.alloc))
+        return ANROwnedRc{V, A}(TrieNodeODRc(new_n, n.alloc))
     end
-    ANRNone{V,A}()
+    ANRNone{V, A}()
 end
 
 # =====================================================================
 # take_node_at_key!
 # =====================================================================
 
-function take_node_at_key!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, prune::Bool) where {V,A}
+function take_node_at_key!(n::LineListNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
     @assert !isempty(key)
     (k0, k1) = get_both_keys(n)
     # Exact slot0 child match
@@ -1308,7 +1328,7 @@ function take_node_at_key!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, pru
         if prune
             return into_child(take_slot0_payload!(n))
         else
-            old = swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+            old = swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
             return into_child(old)
         end
     end
@@ -1317,32 +1337,32 @@ function take_node_at_key!(n::LineListNode{V,A}, key::AbstractVector{UInt8}, pru
         if prune
             return into_child(take_slot1_payload!(n))
         else
-            old = swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+            old = swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
             return into_child(old)
         end
     end
     # Partial match slot0
     if length(k0) > length(key) && slice_starts_with(k0, key)
-        new_key = k0[(length(key)+1):end]
-        new_n = LineListNode{V,A}(n.alloc)
+        new_key = k0[(length(key) + 1):end]
+        new_n = LineListNode{V, A}(n.alloc)
         p0 = if prune
             take_slot0_payload!(n)
         else
             shorten_key_0!(n, length(key))
-            swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+            swap_slot0_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
         end
         p0 !== nothing && set_slot0_no_overflow!(new_n, new_key, p0)
         return TrieNodeODRc(new_n, n.alloc)
     end
     # Partial match slot1
     if length(k1) > length(key) && slice_starts_with(k1, key)
-        new_key = k1[(length(key)+1):end]
-        new_n = LineListNode{V,A}(n.alloc)
+        new_key = k1[(length(key) + 1):end]
+        new_n = LineListNode{V, A}(n.alloc)
         p1 = if prune
             take_slot1_payload!(n)
         else
             shorten_key_1!(n, length(key))
-            swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V,A}()))
+            swap_slot1_payload!(n, ValOrChild(TrieNodeODRc{V, A}()))
         end
         p1 !== nothing && set_slot0_no_overflow!(new_n, new_key, p1)
         return TrieNodeODRc(new_n, n.alloc)
@@ -1360,26 +1380,25 @@ end
 # Rust uses const-generic slot indices; Julia uses explicit Int slot args.
 
 @inline _lln_is_child(n::LineListNode, slot::Int) = slot == 0 ? is_child_0(n) : is_child_1(n)
-@inline _lln_is_val(n::LineListNode, slot::Int)   = slot == 0 ? is_value_0(n) : is_value_1(n)
-@inline _lln_is_used(n::LineListNode, slot::Int)  = slot == 0 ? is_used_0(n)  : is_used_1(n)
+@inline _lln_is_val(n::LineListNode, slot::Int) = slot == 0 ? is_value_0(n) : is_value_1(n)
+@inline _lln_is_used(n::LineListNode, slot::Int) = slot == 0 ? is_used_0(n) : is_used_1(n)
 @inline _lln_get_child(n::LineListNode, slot::Int) = into_child(slot == 0 ? n.slot0 : n.slot1)
-@inline _lln_get_val(n::LineListNode, slot::Int)   = into_val(slot == 0 ? n.slot0 : n.slot1)
-@inline _lln_key(n::LineListNode, slot::Int)       = slot == 0 ? n.key0 : n.key1
-@inline _lln_clone_payload(n::LineListNode, slot::Int) =
-    slot == 0 ? clone_slot0_payload(n) : clone_slot1_payload(n)
+@inline _lln_get_val(n::LineListNode, slot::Int) = into_val(slot == 0 ? n.slot0 : n.slot1)
+@inline _lln_key(n::LineListNode, slot::Int) = slot == 0 ? n.key0 : n.key1
+@inline _lln_clone_payload(n::LineListNode, slot::Int) = slot == 0 ? clone_slot0_payload(n) : clone_slot1_payload(n)
 
 # _try_merge: attempt to merge one slot from each node.
 # Returns AlgResElement{Tuple{Vector{UInt8}, ValOrChild}} | AlgResIdentity | AlgResNone
-function _try_merge(a_key, a::LineListNode{V,A}, a_slot::Int,
-                    b_key, b::LineListNode{V,A}, b_slot::Int) where {V,A}
+function _try_merge(a_key, a::LineListNode{V, A}, a_slot::Int, b_key, b::LineListNode{V, A}, b_slot::Int) where {V, A}
     overlap = find_prefix_overlap(a_key, b_key)
     overlap > 0 ? _merge_guts(overlap, a_key, a, a_slot, b_key, b, b_slot) : AlgResNone()
 end
 
 # _merge_guts: the substance of slot-pair merging.
 # Mirrors merge_guts (line 1273).
-function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
-                     b_key, b::LineListNode{V,A}, b_slot::Int) where {V,A}
+function _merge_guts(
+    overlap::Int, a_key, a::LineListNode{V, A}, a_slot::Int, b_key, b::LineListNode{V, A}, b_slot::Int
+) where {V, A}
     a_key_len = length(a_key)
     b_key_len = length(b_key)
 
@@ -1391,8 +1410,9 @@ function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
             b_child = _lln_get_child(b, b_slot)
             r = pjoin(a_child, b_child)
             if r isa AlgResElement
-                return AlgResElement{Tuple{Vector{UInt8},ValOrChild{V,A}}}(
-                    (Vector{UInt8}(a_key), ValOrChild(r.value)))
+                return AlgResElement{Tuple{Vector{UInt8}, ValOrChild{V, A}}}((
+                    Vector{UInt8}(a_key), ValOrChild(r.value)
+                ))
             elseif r isa AlgResIdentity
                 return AlgResIdentity(r.mask)
             else  # AlgResNone
@@ -1403,8 +1423,9 @@ function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
             b_val = _lln_get_val(b, b_slot)
             r = pjoin(a_val, b_val)
             if r isa AlgResElement
-                return AlgResElement{Tuple{Vector{UInt8},ValOrChild{V,A}}}(
-                    (Vector{UInt8}(a_key), ValOrChild(r.value)))
+                return AlgResElement{Tuple{Vector{UInt8}, ValOrChild{V, A}}}((
+                    Vector{UInt8}(a_key), ValOrChild(r.value)
+                ))
             elseif r isa AlgResIdentity
                 return AlgResIdentity(r.mask)
             else
@@ -1416,40 +1437,42 @@ function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
 
     # b shorter + child: split a, merge intermediate with b's child
     if b_key_len == overlap && _lln_is_child(b, b_slot) && a_key_len > overlap
-        a_payload   = _lln_clone_payload(a, a_slot)
-        b_child     = _lln_get_child(b, b_slot)
-        inter       = LineListNode{V,A}(a.alloc)
-        set_slot0!(inter, a_key[overlap+1:end], a_payload)
-        inter_rc    = TrieNodeODRc(inter, a.alloc)
-        joined_r    = pjoin(b_child, inter_rc)
-        joined = if joined_r isa AlgResElement
+        a_payload = _lln_clone_payload(a, a_slot)
+        b_child   = _lln_get_child(b, b_slot)
+        inter     = LineListNode{V, A}(a.alloc)
+        set_slot0!(inter, a_key[(overlap + 1):end], a_payload)
+        inter_rc = TrieNodeODRc(inter, a.alloc)
+        joined_r = pjoin(b_child, inter_rc)
+        joined   = if joined_r isa AlgResElement
             joined_r.value
         elseif joined_r isa AlgResIdentity
             (joined_r.mask & SELF_IDENT != 0) ? b_child : inter_rc
         else
             return AlgResNone()
         end
-        return AlgResElement{Tuple{Vector{UInt8},ValOrChild{V,A}}}(
-            (Vector{UInt8}(a_key[1:overlap]), ValOrChild(joined)))
+        return AlgResElement{Tuple{Vector{UInt8}, ValOrChild{V, A}}}((
+            Vector{UInt8}(a_key[1:overlap]), ValOrChild(joined)
+        ))
     end
 
     # a shorter + child: split b, merge intermediate with a's child
     if a_key_len == overlap && _lln_is_child(a, a_slot) && b_key_len > overlap
-        b_payload   = _lln_clone_payload(b, b_slot)
-        a_child     = _lln_get_child(a, a_slot)
-        inter       = LineListNode{V,A}(a.alloc)
-        set_slot0!(inter, b_key[overlap+1:end], b_payload)
-        inter_rc    = TrieNodeODRc(inter, a.alloc)
-        joined_r    = pjoin(a_child, inter_rc)
-        joined = if joined_r isa AlgResElement
+        b_payload = _lln_clone_payload(b, b_slot)
+        a_child   = _lln_get_child(a, a_slot)
+        inter     = LineListNode{V, A}(a.alloc)
+        set_slot0!(inter, b_key[(overlap + 1):end], b_payload)
+        inter_rc = TrieNodeODRc(inter, a.alloc)
+        joined_r = pjoin(a_child, inter_rc)
+        joined   = if joined_r isa AlgResElement
             joined_r.value
         elseif joined_r isa AlgResIdentity
             (joined_r.mask & SELF_IDENT != 0) ? a_child : inter_rc
         else
             return AlgResNone()
         end
-        return AlgResElement{Tuple{Vector{UInt8},ValOrChild{V,A}}}(
-            (Vector{UInt8}(a_key[1:overlap]), ValOrChild(joined)))
+        return AlgResElement{Tuple{Vector{UInt8}, ValOrChild{V, A}}}((
+            Vector{UInt8}(a_key[1:overlap]), ValOrChild(joined)
+        ))
     end
 
     # Shared prefix node: build a LineListNode at common prefix, two slots beyond it
@@ -1458,11 +1481,11 @@ function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
         eff_overlap -= 1
     end
     if eff_overlap > 0
-        new_n       = LineListNode{V,A}(a.alloc)
-        a_payload   = _lln_clone_payload(a, a_slot)
-        b_payload   = _lln_clone_payload(b, b_slot)
-        new_a_key   = a_key[eff_overlap+1:end]
-        new_b_key   = b_key[eff_overlap+1:end]
+        new_n     = LineListNode{V, A}(a.alloc)
+        a_payload = _lln_clone_payload(a, a_slot)
+        b_payload = _lln_clone_payload(b, b_slot)
+        new_a_key = a_key[(eff_overlap + 1):end]
+        new_b_key = b_key[(eff_overlap + 1):end]
         if should_swap_keys(new_a_key, new_b_key)
             set_slot0!(new_n, new_b_key, b_payload)
             set_slot1!(new_n, new_a_key, a_payload)
@@ -1470,9 +1493,9 @@ function _merge_guts(overlap::Int, a_key, a::LineListNode{V,A}, a_slot::Int,
             set_slot0!(new_n, new_a_key, a_payload)
             set_slot1!(new_n, new_b_key, b_payload)
         end
-        return AlgResElement{Tuple{Vector{UInt8},ValOrChild{V,A}}}(
-            (Vector{UInt8}(a_key[1:eff_overlap]),
-             ValOrChild(TrieNodeODRc(new_n, a.alloc))))
+        return AlgResElement{Tuple{Vector{UInt8}, ValOrChild{V, A}}}((
+            Vector{UInt8}(a_key[1:eff_overlap]), ValOrChild(TrieNodeODRc(new_n, a.alloc))
+        ))
     end
 
     AlgResNone()
@@ -1482,18 +1505,20 @@ end
 # or a DenseByteNode (>2 entries).
 # Returns AlgebraicResult{TrieNodeODRc{V,A}}.
 # Ports Rust merge_list_nodes (line 1377) + merge_into_list_nodes (line 1590).
-function merge_list_nodes(a::LineListNode{V,A}, b::LineListNode{V,A}) where {V,A}
+function merge_list_nodes(a::LineListNode{V, A}, b::LineListNode{V, A}) where {V, A}
     (ak0, ak1) = (a.key0, a.key1)
     (bk0, bk1) = (b.key0, b.key1)
     # entries: (key, payload) pairs; identity_masks[i] = which arg was identity for entry i
-    entries       = Vector{Tuple{Vector{UInt8}, ValOrChild{V,A}}}()
+    entries = Vector{Tuple{Vector{UInt8}, ValOrChild{V, A}}}()
     identity_masks = UInt64[]
     used = falses(4)  # [a_slot0, a_slot1, b_slot0, b_slot1]
 
     function record!(r, a_idx::Int, b_idx::Int)
         if r isa AlgResElement
-            push!(entries, r.value); push!(identity_masks, UInt64(0))
-            used[a_idx+1] = true; used[b_idx+1] = true
+            push!(entries, r.value);
+            push!(identity_masks, UInt64(0))
+            used[a_idx + 1] = true;
+            used[b_idx + 1] = true
             return true
         elseif r isa AlgResIdentity
             mask = r.mask
@@ -1503,8 +1528,10 @@ function merge_list_nodes(a::LineListNode{V,A}, b::LineListNode{V,A}) where {V,A
             else
                 (_lln_key(b, b_slot), _lln_clone_payload(b, b_slot))
             end
-            push!(entries, (Vector{UInt8}(pair[1]), pair[2])); push!(identity_masks, mask)
-            used[a_idx+1] = true; used[b_idx+1] = true
+            push!(entries, (Vector{UInt8}(pair[1]), pair[2]));
+            push!(identity_masks, mask)
+            used[a_idx + 1] = true;
+            used[b_idx + 1] = true
             return true
         end
         false
@@ -1526,7 +1553,7 @@ function merge_list_nodes(a::LineListNode{V,A}, b::LineListNode{V,A}) where {V,A
 
     # Add un-merged single entries
     for (a_idx, a_key) in ((0, ak0), (1, ak1))
-        !used[a_idx+1] && _lln_is_used(a, a_idx) && begin
+        !used[a_idx + 1] && _lln_is_used(a, a_idx) && begin
             p = _lln_clone_payload(a, a_idx)
             p !== nothing && begin
                 push!(entries, (Vector{UInt8}(a_key), p))
@@ -1535,7 +1562,7 @@ function merge_list_nodes(a::LineListNode{V,A}, b::LineListNode{V,A}) where {V,A
         end
     end
     for (b_idx, b_key) in ((0, bk0), (1, bk1))
-        !used[b_idx+3] && _lln_is_used(b, b_idx) && begin
+        !used[b_idx + 3] && _lln_is_used(b, b_idx) && begin
             p = _lln_clone_payload(b, b_idx)
             p !== nothing && begin
                 push!(entries, (Vector{UInt8}(b_key), p))
@@ -1549,45 +1576,47 @@ function merge_list_nodes(a::LineListNode{V,A}, b::LineListNode{V,A}) where {V,A
     # ≤ 2 entries → stays as LineListNode
     if n <= 2
         n == 0 && return AlgResNone()
-        new_node = LineListNode{V,A}(a.alloc)
+        new_node = LineListNode{V, A}(a.alloc)
         if n == 1
             imask = identity_masks[1]
             imask != 0 && return AlgResIdentity(imask)
             set_slot0!(new_node, entries[1][1], entries[1][2])
-            return AlgResElement{TrieNodeODRc{V,A}}(TrieNodeODRc(new_node, a.alloc))
+            return AlgResElement{TrieNodeODRc{V, A}}(TrieNodeODRc(new_node, a.alloc))
         else  # n == 2
             imask = identity_masks[1] & identity_masks[2]
             imask != 0 && return AlgResIdentity(imask)
             (k0, p0), (k1, p1) = entries[1], entries[2]
             if should_swap_keys(k0, k1)
-                set_slot0!(new_node, k1, p1); set_slot1!(new_node, k0, p0)
+                set_slot0!(new_node, k1, p1);
+                set_slot1!(new_node, k0, p0)
             else
-                set_slot0!(new_node, k0, p0); set_slot1!(new_node, k1, p1)
+                set_slot0!(new_node, k0, p0);
+                set_slot1!(new_node, k1, p1)
             end
-            return AlgResElement{TrieNodeODRc{V,A}}(TrieNodeODRc(new_node, a.alloc))
+            return AlgResElement{TrieNodeODRc{V, A}}(TrieNodeODRc(new_node, a.alloc))
         end
     end
 
     # > 2 entries → upgrade to DenseByteNode
-    dense = DenseByteNode{V,A}(a.alloc, n)
+    dense = DenseByteNode{V, A}(a.alloc, n)
     for (key, payload) in entries
         k0 = key[1]
         if length(key) > 1
-            child_lln = LineListNode{V,A}(a.alloc)
+            child_lln = LineListNode{V, A}(a.alloc)
             set_slot0!(child_lln, key[2:end], payload)
             _bn_join_child_into!(dense, k0, TrieNodeODRc(child_lln, a.alloc))
         else
             _bn_set_payload_owned!(dense, k0, payload)
         end
     end
-    AlgResElement{TrieNodeODRc{V,A}}(TrieNodeODRc(dense, a.alloc))
+    AlgResElement{TrieNodeODRc{V, A}}(TrieNodeODRc(dense, a.alloc))
 end
 
 # =====================================================================
 # Lattice operations
 # =====================================================================
 
-function pjoin_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
+function pjoin_dyn(self::LineListNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
     tag = node_tag(other)
     if tag == EMPTY_NODE_TAG
         return AlgResIdentity(SELF_IDENT)
@@ -1606,7 +1635,7 @@ function pjoin_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where 
     end
 end
 
-function join_into_dyn!(self::LineListNode{V,A}, other::TrieNodeODRc{V,A}) where {V,A}
+function join_into_dyn!(self::LineListNode{V, A}, other::TrieNodeODRc{V, A}) where {V, A}
     is_empty_node(other) && return (ALG_STATUS_IDENTITY, nothing)
     other_tag = node_tag(as_tagged(other))
     if other_tag == LINE_LIST_NODE_TAG
@@ -1634,22 +1663,21 @@ end
 
 # factor_prefix!: if the two slots share an illegal key overlap, merge them
 # into a single slot at the shared prefix.  Ports Rust fn factor_prefix (line 1046).
-function factor_prefix!(n::LineListNode{V,A}) where {V,A}
-    (!is_used_0(n) || !is_used_1(n)) && return
+function factor_prefix!(n::LineListNode{V, A}) where {V, A}
+    (!is_used_0(n) || !is_used_1(n)) && return nothing
     key0, key1 = n.key0, n.key1
     overlap = find_prefix_overlap(key0, key1)
     # overlap == 1 is legal if: slot0 is a val OR (both len==1 and slot1 is a val)
-    legal_overlap = overlap == 1 && (
-        !is_child_0(n) || (!is_child_1(n) && length(key0) == 1 && length(key1) == 1))
-    (overlap == 0 || legal_overlap) && return
+    legal_overlap = overlap == 1 && (!is_child_0(n) || (!is_child_1(n) && length(key0) == 1 && length(key1) == 1))
+    (overlap == 0 || legal_overlap) && return nothing
 
     r = _merge_guts(overlap, key0, n, 0, key1, n, 1)
     if r isa AlgResElement
         (shared_key, merged_payload) = r.value
-        n.key0  = Vector{UInt8}(shared_key)
+        n.key0 = Vector{UInt8}(shared_key)
         n.slot0 = merged_payload
         n.slot1 = nothing
-        n.key1  = UInt8[]
+        n.key1 = UInt8[]
     elseif r isa AlgResIdentity
         # Both sides equal → keep slot0, clear slot1
         n.slot1 = nothing
@@ -1658,7 +1686,7 @@ function factor_prefix!(n::LineListNode{V,A}) where {V,A}
     # AlgResNone: no change needed
 end
 
-function drop_head_dyn!(self::LineListNode{V,A}, byte_cnt::Int) where {V,A}
+function drop_head_dyn!(self::LineListNode{V, A}, byte_cnt::Int) where {V, A}
     @assert byte_cnt > 0
     # Drop values whose keys are fully consumed by byte_cnt
     is_value_1(self) && key_len_1(self) <= byte_cnt && take_slot1_payload!(self)
@@ -1670,7 +1698,7 @@ function drop_head_dyn!(self::LineListNode{V,A}, byte_cnt::Int) where {V,A}
         # Single-slot case
         klen0 = key_len_0(self)
         if byte_cnt < klen0
-            self.key0 = self.key0[(byte_cnt+1):end]
+            self.key0 = self.key0[(byte_cnt + 1):end]
             return TrieNodeODRc(self, self.alloc)
         else
             remaining = byte_cnt - klen0
@@ -1693,8 +1721,8 @@ function drop_head_dyn!(self::LineListNode{V,A}, byte_cnt::Int) where {V,A}
 
     # Case A: byte_cnt < both key lengths → shorten keys in-place, re-sort, factor
     if byte_cnt < key0_len && byte_cnt < key1_len
-        new_key0 = key0[(byte_cnt+1):end]
-        new_key1 = key1[(byte_cnt+1):end]
+        new_key0 = key0[(byte_cnt + 1):end]
+        new_key1 = key1[(byte_cnt + 1):end]
         if new_key0 <= new_key1
             self.key0 = new_key0
             self.key1 = new_key1
@@ -1716,8 +1744,9 @@ function drop_head_dyn!(self::LineListNode{V,A}, byte_cnt::Int) where {V,A}
     new_key1 = key1[chop_bytes:end]
     # overlap of the parts BEYOND chop_bytes (0-indexed equiv: key[chop_bytes..])
     overlap_suffix = find_prefix_overlap(
-        chop_bytes < key0_len ? key0[(chop_bytes+1):end] : UInt8[],
-        chop_bytes < key1_len ? key1[(chop_bytes+1):end] : UInt8[])
+        chop_bytes < key0_len ? key0[(chop_bytes + 1):end] : UInt8[],
+        chop_bytes < key1_len ? key1[(chop_bytes + 1):end] : UInt8[],
+    )
     r = _merge_guts(overlap_suffix + 1, new_key0, self, 0, new_key1, self, 1)
 
     merged_payload = if r isa AlgResElement
@@ -1743,19 +1772,19 @@ end
 Returns a `PayloadRef` for slot `slot` (0 or 1) of `n`.
 Ports `unsafe { self.payload_in_slot::<SLOT>() }` in upstream.
 """
-function _lln_payload_ref(n::LineListNode{V,A}, slot::Int) where {V,A}
+function _lln_payload_ref(n::LineListNode{V, A}, slot::Int) where {V, A}
     if _lln_is_child(n, slot)
         child_rc = into_child(slot == 0 ? n.slot0 : n.slot1)
-        PayloadRef{V,A}(0x2, nothing, child_rc)
+        PayloadRef{V, A}(0x2, nothing, child_rc)
     elseif _lln_is_val(n, slot)
         val = into_val(slot == 0 ? n.slot0 : n.slot1)
-        PayloadRef{V,A}(0x1, Ref{V}(val), nothing)
+        PayloadRef{V, A}(0x1, Ref{V}(val), nothing)
     else
-        PayloadRef{V,A}()
+        PayloadRef{V, A}()
     end
 end
 
-function pmeet_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
+function pmeet_dyn(self::LineListNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
     node_is_empty(self) && return AlgResNone()
     sc = used_slot_count(self)
     sc == 0 && return AlgResNone()
@@ -1763,31 +1792,34 @@ function pmeet_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where 
     self_payloads = if sc == 1
         [(copy(self.key0), _lln_payload_ref(self, 0))]
     else
-        [(copy(self.key0), _lln_payload_ref(self, 0)),
-         (copy(self.key1), _lln_payload_ref(self, 1))]
+        [(copy(self.key0), _lln_payload_ref(self, 0)), (copy(self.key1), _lln_payload_ref(self, 1))]
     end
 
-    pmeet_generic(self_payloads, other, function(payloads)
-        p0 = sc >= 1 ? payloads[1] : nothing
-        p1 = sc >= 2 ? payloads[2] : nothing
-        new_n = clone_with_updated_payloads(self, p0, p1)
-        @assert new_n !== nothing "pmeet_dyn merge_f: all payloads None (should have been AlgResNone)"
-        TrieNodeODRc(new_n, self.alloc)
-    end)
+    pmeet_generic(
+        self_payloads,
+        other,
+        function (payloads)
+            p0 = sc >= 1 ? payloads[1] : nothing
+            p1 = sc >= 2 ? payloads[2] : nothing
+            new_n = clone_with_updated_payloads(self, p0, p1)
+            @assert new_n !== nothing "pmeet_dyn merge_f: all payloads None (should have been AlgResNone)"
+            TrieNodeODRc(new_n, self.alloc)
+        end,
+    )
 end
 
-function psubtract_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
+function psubtract_dyn(self::LineListNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
     tag = node_tag(other)
     if tag == EMPTY_NODE_TAG
         return AlgResIdentity(SELF_IDENT)
     elseif tag == DENSE_BYTE_NODE_TAG || tag == CELL_BYTE_NODE_TAG
         # Upgrade self to dense, then subtract via dense impl
-        dense = DenseByteNode{V,A}(self.alloc, 2)
+        dense = DenseByteNode{V, A}(self.alloc, 2)
         merge_from_list_node!(dense, self)
         return psubtract_dyn(dense, other)
     elseif tag == LINE_LIST_NODE_TAG || tag == TINY_REF_NODE_TAG
         # Use abstract subtract path via dense upgrade
-        dense = DenseByteNode{V,A}(self.alloc, 2)
+        dense = DenseByteNode{V, A}(self.alloc, 2)
         merge_from_list_node!(dense, self)
         return psubtract_dyn(dense, other)
     else
@@ -1795,16 +1827,16 @@ function psubtract_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) wh
     end
 end
 
-function prestrict_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
+function prestrict_dyn(self::LineListNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
     tag = node_tag(other)
     if tag == EMPTY_NODE_TAG
         return AlgResNone()
     elseif tag == DENSE_BYTE_NODE_TAG || tag == CELL_BYTE_NODE_TAG
-        dense = DenseByteNode{V,A}(self.alloc, 2)
+        dense = DenseByteNode{V, A}(self.alloc, 2)
         merge_from_list_node!(dense, self)
         return prestrict_dyn(dense, other)
     elseif tag == LINE_LIST_NODE_TAG || tag == TINY_REF_NODE_TAG
-        dense = DenseByteNode{V,A}(self.alloc, 2)
+        dense = DenseByteNode{V, A}(self.alloc, 2)
         merge_from_list_node!(dense, self)
         return prestrict_dyn(dense, other)
     else
@@ -1812,8 +1844,8 @@ function prestrict_dyn(self::LineListNode{V,A}, other::AbstractTrieNode{V,A}) wh
     end
 end
 
-function clone_self(n::LineListNode{V,A}) where {V,A}
-    new_n = LineListNode{V,A}(n.alloc)
+function clone_self(n::LineListNode{V, A}) where {V, A}
+    new_n = LineListNode{V, A}(n.alloc)
     if is_used_0(n)
         new_n.slot0 = deepcopy(n.slot0)
         new_n.key0  = copy(n.key0)
@@ -1828,7 +1860,7 @@ end
 # TrieNodeDowncast equivalents
 node_tag(::LineListNode) = LINE_LIST_NODE_TAG
 
-function convert_to_cell_node!(n::LineListNode{V,A}) where {V,A}
+function convert_to_cell_node!(n::LineListNode{V, A}) where {V, A}
     _convert_to_dense!(n, 3)
 end
 

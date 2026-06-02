@@ -14,7 +14,7 @@ using PathMap
 
 # PathMap-level pjoin/pmeet/psubtract return AlgebraicResult (faithful to Rust).
 # These helpers materialise the result as a concrete PathMap for convenience.
-function map_union(a::PathMap.PathMap{V,A}, b::PathMap.PathMap{V,A}) where {V,A}
+function map_union(a::PathMap.PathMap{V, A}, b::PathMap.PathMap{V, A}) where {V, A}
     result = deepcopy(a)
     b.root === nothing && return result
     wz = write_zipper(result)
@@ -22,9 +22,9 @@ function map_union(a::PathMap.PathMap{V,A}, b::PathMap.PathMap{V,A}) where {V,A}
     result
 end
 
-function map_subtract(a::PathMap.PathMap{V,A}, b::PathMap.PathMap{V,A}) where {V,A}
+function map_subtract(a::PathMap.PathMap{V, A}, b::PathMap.PathMap{V, A}) where {V, A}
     b.root === nothing && return deepcopy(a)
-    a.root === nothing && return PathMap.PathMap{V,A}(a.alloc)
+    a.root === nothing && return PathMap.PathMap{V, A}(a.alloc)
     result = deepcopy(a)
     wz = write_zipper(result)
     wz_subtract_into!(wz, ANRBorrowedRc(b.root))
@@ -37,16 +37,18 @@ map_intersect(a, b) = map_subtract(a, map_subtract(a, b))
 # ── Knowledge bases ───────────────────────────────────────────────────
 function make_set(paths)
     m = PathMap.PathMap{Bool}()
-    for p in paths; set_val_at!(m, p, true); end
+    for p in paths
+        ;
+        set_val_at!(m, p, true);
+    end
     m
 end
 
-animals  = make_set([b"mammal:dog", b"mammal:cat", b"mammal:whale",
-                     b"reptile:snake", b"reptile:turtle",
-                     b"bird:eagle", b"bird:penguin"])
+animals = make_set([
+    b"mammal:dog", b"mammal:cat", b"mammal:whale", b"reptile:snake", b"reptile:turtle", b"bird:eagle", b"bird:penguin"
+])
 
-swimmers = make_set([b"mammal:whale", b"reptile:turtle",
-                     b"bird:penguin", b"fish:salmon"])
+swimmers = make_set([b"mammal:whale", b"reptile:turtle", b"bird:penguin", b"fish:salmon"])
 
 println("=== Path Algebra on Knowledge Bases ===")
 println("Animals:  ", val_count(animals))
@@ -112,5 +114,4 @@ println("Serialized $(val_count(swimming_animals)) paths → $(position(io)) byt
 seekstart(io)
 restored = PathMap.PathMap{Bool}()
 deserialize_paths(restored, io, true)
-println("Restored: ", val_count(restored), " paths — matches: ",
-        val_count(restored) == val_count(swimming_animals))
+println("Restored: ", val_count(restored), " paths — matches: ", val_count(restored) == val_count(swimming_animals))

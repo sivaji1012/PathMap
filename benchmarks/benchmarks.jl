@@ -19,7 +19,7 @@ SUITE["construction"] = BenchmarkGroup()
 SUITE["construction"]["dense_keys_1k"] = @benchmarkable begin
     m = PathMap.PathMap{Nothing}()
     for i in 1:1000
-        set_val_at!(m, Vector{UInt8}(string(i, pad=6)), nothing)
+        set_val_at!(m, Vector{UInt8}(string(i, pad = 6)), nothing)
     end
 end
 
@@ -46,7 +46,7 @@ shocks that flesh is heir to tis a consummation devoutly to be wished
 
 function _build_word_map(text)
     m = PathMap.PathMap{Int}()
-    for word in split(lowercase(text), r"\W+", keepempty=false)
+    for word in split(lowercase(text), r"\W+"; keepempty = false)
         k = Vector{UInt8}(word)
         v = get_val_at(m, k)
         set_val_at!(m, k, v === nothing ? 1 : v + 1)
@@ -65,7 +65,10 @@ SUITE["word_index"]["lookup_miss"] = @benchmarkable get_val_at($_WORD_MAP, b"zzz
 SUITE["word_index"]["iterate_all"] = @benchmarkable begin
     rz = read_zipper($_WORD_MAP)
     n = 0
-    while zipper_to_next_val!(rz); n += 1; end
+    while zipper_to_next_val!(rz)
+        ;
+        n += 1;
+    end
     n
 end
 
@@ -123,14 +126,12 @@ const _SHARED_MAP = let m = PathMap.PathMap{Int}()
 end
 
 SUITE["morphisms"]["cata_cached_count"] = @benchmarkable cata_cached(
-    $_SHARED_MAP,
-    (mask, children, val) ->
-        (val !== nothing ? 1 : 0) + reduce(+, children, init=0))
+    $_SHARED_MAP, (mask, children, val) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0)
+)
 
 SUITE["morphisms"]["cata_side_effect_paths"] = @benchmarkable begin
     count = Ref(0)
-    cata_side_effect($_SHARED_MAP, (mask, ch, val, path) ->
-        (val !== nothing && (count[] += 1); nothing))
+    cata_side_effect($_SHARED_MAP, (mask, ch, val, path) -> (val !== nothing && (count[] += 1); nothing))
     count[]
 end
 
@@ -172,7 +173,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         tune!(SUITE)
     end
 
-    results = run(SUITE, verbose=true, seconds=tune ? 10 : 3)
+    results = run(SUITE; verbose = true, seconds = tune ? 10 : 3)
 
     println("\n=== Results ===")
     for (group, bgroup) in results

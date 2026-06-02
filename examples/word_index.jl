@@ -16,7 +16,7 @@ using PathMap
 # ── Build a word → count map from a string corpus ─────────────────────
 function word_frequency(text::String)
     m = PathMap.PathMap{Int}()
-    for word in split(lowercase(text), r"\W+", keepempty=false)
+    for word in split(lowercase(text), r"\W+"; keepempty = false)
         key = Vector{UInt8}(word)
         existing = get_val_at(m, key)
         set_val_at!(m, key, existing === nothing ? 1 : existing + 1)
@@ -55,9 +55,9 @@ println("  'be'  => ", get_val_at(merged, b"be"))
 println("  'the' => ", get_val_at(merged, b"the"))
 
 # ── Structural statistics via cata_cached ─────────────────────────────
-total_occurrences = cata_cached(merged,
-    (mask, children, val) ->
-        (val !== nothing ? val : 0) + reduce(+, children, init=0))
+total_occurrences = cata_cached(
+    merged, (mask, children, val) -> (val !== nothing ? val : 0) + reduce(+, children; init = 0)
+)
 
 println("\nTotal word occurrences: ", total_occurrences)
 println("Unique words in merged: ", val_count(merged))

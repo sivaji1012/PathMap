@@ -31,6 +31,7 @@ Mutable write cursor into a `PathMap`.  Corresponds to `WriteZipperCore` /
 `WriteZipperUntracked` in upstream (lifetimes dropped in Julia).
 
 Fields mirror `WriteZipperCore + KeyFields` in write_zipper.rs:
+
   - `pathmap`         — owning PathMap (for root replacement + root_val access)
   - `root_key_start`  — 0-indexed offset of root node's key in `prefix_buf`
   - `prefix_buf`      — full path bytes (origin prefix + traversal extension)
@@ -39,17 +40,17 @@ Fields mirror `WriteZipperCore + KeyFields` in write_zipper.rs:
   - `focus_stack`     — TrieNodeODRc references from root down to current focus
   - `alloc`           — allocator (carried for node creation)
 """
-mutable struct WriteZipperCore{V, A<:Allocator}
-    pathmap         ::PathMap{V,A}
-    root_key_start  ::Int                        # 0-indexed (mirrors KeyFields.root_key_start)
-    prefix_buf      ::Vector{UInt8}              # mirrors KeyFields.prefix_buf
-    origin_path_len ::Int                        # mirrors origin_path.len()
-    prefix_idx      ::Vector{Int}                # 0-indexed per level (mirrors KeyFields.prefix_idx)
-    focus_stack     ::Vector{TrieNodeODRc{V,A}}  # mirrors MutNodeStack
-    alloc           ::A
+mutable struct WriteZipperCore{V, A <: Allocator}
+    pathmap         :: PathMap{V, A}
+    root_key_start  :: Int                        # 0-indexed (mirrors KeyFields.root_key_start)
+    prefix_buf      :: Vector{UInt8}              # mirrors KeyFields.prefix_buf
+    origin_path_len :: Int                        # mirrors origin_path.len()
+    prefix_idx      :: Vector{Int}                # 0-indexed per level (mirrors KeyFields.prefix_idx)
+    focus_stack     :: Vector{TrieNodeODRc{V, A}}  # mirrors MutNodeStack
+    alloc           :: A
 end
 
-const WriteZipperUntracked{V,A} = WriteZipperCore{V,A}
+const WriteZipperUntracked{V, A} = WriteZipperCore{V, A}
 
 # =====================================================================
 # Key helpers
@@ -63,7 +64,7 @@ end
 
 @inline function _wz_node_key(z::WriteZipperCore)
     ks = _wz_node_key_start(z)
-    view(z.prefix_buf, ks+1:length(z.prefix_buf))
+    view(z.prefix_buf, (ks + 1):length(z.prefix_buf))
 end
 
 @inline _wz_at_root(z::WriteZipperCore) = isempty(_wz_node_key(z))
@@ -71,9 +72,9 @@ end
 # Key from the grandparent to the current focus (used by _wz_replace_top_node!)
 # Mirrors KeyFields.parent_key()
 @inline function _wz_parent_key(z::WriteZipperCore)
-    ks = length(z.prefix_idx) > 1 ? z.prefix_idx[end-1] : z.root_key_start
+    ks = length(z.prefix_idx) > 1 ? z.prefix_idx[end - 1] : z.root_key_start
     ke = _wz_node_key_start(z)   # 0-indexed end (exclusive in Rust → inclusive at ke in Julia)
-    view(z.prefix_buf, ks+1:ke)
+    view(z.prefix_buf, (ks + 1):ke)
 end
 
 # =====================================================================
@@ -86,8 +87,7 @@ end
 #   depth > 1 : pop, tell parent to replace its child slot, re-push new_rc
 #   depth == 1: update pathmap.root directly
 
-function _wz_replace_top_node!(z::WriteZipperCore{V,A},
-                                new_rc::TrieNodeODRc{V,A}) where {V,A}
+function _wz_replace_top_node!(z::WriteZipperCore{V, A}, new_rc::TrieNodeODRc{V, A}) where {V, A}
     if length(z.focus_stack) > 1
         pop!(z.focus_stack)
         parent_node = z.focus_stack[end].node
@@ -108,9 +108,9 @@ end
 @inline function _wz_parent_key_for_level(z::WriteZipperCore, k::Int)
     # k is 1-indexed, k >= 2. Returns the byte slice that the parent node
     # at focus_stack[k-1] uses to reach focus_stack[k].
-    key_start = k == 2 ? z.root_key_start : z.prefix_idx[k-2]
-    key_end   = z.prefix_idx[k-1]
-    view(z.prefix_buf, key_start+1:key_end)
+    key_start = k == 2 ? z.root_key_start : z.prefix_idx[k - 2]
+    key_end   = z.prefix_idx[k - 1]
+    view(z.prefix_buf, (key_start + 1):key_end)
 end
 
 # =====================================================================
@@ -128,9 +128,9 @@ end
 #   If parent (k-1) was just cloned: its clone_self used deepcopy, so its
 #     child slot points to a fresh copy, not our focus_stack[k]. Re-link.
 
-function _wz_ensure_write_unique!(z::WriteZipperCore{V,A}) where {V,A}
+function _wz_ensure_write_unique!(z::WriteZipperCore{V, A}) where {V, A}
     n = length(z.focus_stack)
-    n == 0 && return
+    n == 0 && return nothing
     parent_was_cloned = false
     for k in 1:n
         rc = z.focus_stack[k]
@@ -157,7 +157,7 @@ function _wz_ensure_write_unique!(z::WriteZipperCore{V,A}) where {V,A}
         # to point to the real (now unique) rc.
         if parent_was_cloned && k > 1
             pk = collect(_wz_parent_key_for_level(z, k))
-            node_replace_child!(z.focus_stack[k-1].node, pk, rc)
+            node_replace_child!(z.focus_stack[k - 1].node, pk, rc)
         end
         parent_was_cloned = was_cloned
     end
@@ -171,9 +171,7 @@ end
 # Calls `node_f(focus_node, key)`.  If the result is a TrieNodeODRc
 # (upgrade), replaces the top node and calls `retry_f`.
 
-function _wz_in_mut_static_result!(z::WriteZipperCore{V,A},
-                                    node_f::Function,
-                                    retry_f::Function) where {V,A}
+function _wz_in_mut_static_result!(z::WriteZipperCore{V, A}, node_f::Function, retry_f::Function) where {V, A}
     _wz_ensure_write_unique!(z)
     key        = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
@@ -195,10 +193,10 @@ end
 # WriteZipper stops descending when < 2 bytes remain (node_key >= 1 byte
 # must remain for the focus-holds-parent invariant).
 
-function _wz_descend_to_internal!(z::WriteZipperCore{V,A}) where {V,A}
+function _wz_descend_to_internal!(z::WriteZipperCore{V, A}) where {V, A}
     key_start = _wz_node_key_start(z)
-    key       = view(z.prefix_buf, key_start+1:length(z.prefix_buf))
-    length(key) < 2 && return
+    key       = view(z.prefix_buf, (key_start + 1):length(z.prefix_buf))
+    length(key) < 2 && return nothing
 
     while true
         focus_node = z.focus_stack[end].node
@@ -208,9 +206,9 @@ function _wz_descend_to_internal!(z::WriteZipperCore{V,A}) where {V,A}
         # Only descend if there are bytes remaining AFTER consuming this child's key
         consumed >= length(key) && break
         key_start += consumed
-        push!(z.prefix_idx,    key_start)
-        push!(z.focus_stack,   child_rc)
-        key = view(z.prefix_buf, key_start+1:length(z.prefix_buf))
+        push!(z.prefix_idx, key_start)
+        push!(z.focus_stack, child_rc)
+        key = view(z.prefix_buf, (key_start + 1):length(z.prefix_buf))
         length(key) < 2 && break   # must keep >= 1 byte as node_key
     end
 end
@@ -224,13 +222,13 @@ end
 # For write_zipper(m) / write_zipper_at_path with origin_path_len = 0,
 # this is always a no-op.
 
-function _wz_mend_root!(z::WriteZipperCore{V,A}) where {V,A}
-    (isempty(z.prefix_idx) && z.origin_path_len > 1) || return
-    length(z.focus_stack) == 1 || return
+function _wz_mend_root!(z::WriteZipperCore{V, A}) where {V, A}
+    (isempty(z.prefix_idx) && z.origin_path_len > 1) || return nothing
+    length(z.focus_stack) == 1 || return nothing
     root_prefix = view(z.prefix_buf, 1:z.origin_path_len)
     nks = z.root_key_start
-    nks >= length(root_prefix) && return
-    root_slice = view(root_prefix, nks+1:length(root_prefix))
+    nks >= length(root_prefix) && return nothing
+    root_slice = view(root_prefix, (nks + 1):length(root_prefix))
     root_rc    = z.focus_stack[1]
     # Traverse root_slice to find the deepest reachable node
     (final_rc, remaining, _) = node_along_path(root_rc, root_slice, nothing, true)
@@ -253,18 +251,18 @@ Set the value at the zipper's current cursor position.  Returns the
 previously stored value (or `nothing`).  Handles COW node upgrades
 transparently.  Mirrors upstream `WriteZipperCore::set_val`.
 """
-function wz_set_val!(z::WriteZipperCore{V,A}, val::V) where {V,A}
+function wz_set_val!(z::WriteZipperCore{V, A}, val::V) where {V, A}
     nk = _wz_node_key(z)
     if isempty(nk)
         # At root: write directly to PathMap.root_val
-        old_val          = z.pathmap.root_val
+        old_val = z.pathmap.root_val
         z.pathmap.root_val = val
         return old_val
     end
 
-    (old_val, created_subnode) = _wz_in_mut_static_result!(z,
-        (node, key) -> node_set_val!(node, key, val),
-        (_node, _key) -> (nothing, true))  # retry after upgrade always creates subnode
+    (old_val, created_subnode) = _wz_in_mut_static_result!(
+        z, (node, key) -> node_set_val!(node, key, val), (_node, _key) -> (nothing, true)
+    )  # retry after upgrade always creates subnode
 
     if created_subnode
         _wz_mend_root!(z)
@@ -286,7 +284,7 @@ end
 Remove the value at the zipper's current cursor position.  If `prune`
 is true, empty dangling paths are pruned.  Mirrors `remove_val`.
 """
-function wz_remove_val!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
+function wz_remove_val!(z::WriteZipperCore{V, A}, prune::Bool = false) where {V, A}
     nk = collect(_wz_node_key(z))
     if isempty(nk)
         old_val            = z.pathmap.root_val
@@ -313,7 +311,7 @@ Extend the cursor's path by `k` bytes and descend as far as possible
 through existing trie nodes.  Mirrors `descend_to`.
 """
 function wz_descend_to!(z::WriteZipperCore, k)
-    isempty(k) && return
+    isempty(k) && return nothing
     append!(z.prefix_buf, k)
     _wz_descend_to_internal!(z)
     nothing
@@ -331,7 +329,7 @@ end
 Ascend `steps` bytes toward the zipper root.  Returns `true` on success,
 `false` if the zipper is already at the root.  Mirrors `ascend`.
 """
-function wz_ascend!(z::WriteZipperCore, steps::Int=1)
+function wz_ascend!(z::WriteZipperCore, steps::Int = 1)
     while true
         if isempty(_wz_node_key(z))
             # ascend_across_nodes: pop ancestor level if possible (no-op at root)
@@ -358,7 +356,7 @@ end
 True iff the trie contains any path starting at the cursor.
 Mirrors `path_exists`.
 """
-function wz_path_exists(z::WriteZipperCore{V,A}) where {V,A}
+function wz_path_exists(z::WriteZipperCore{V, A}) where {V, A}
     nk = _wz_node_key(z)
     isempty(nk) && return true
     focus_node = z.focus_stack[end].node
@@ -370,7 +368,7 @@ end
 
 True iff there is a value at the cursor position.  Mirrors `is_val`.
 """
-function wz_is_val(z::WriteZipperCore{V,A}) where {V,A}
+function wz_is_val(z::WriteZipperCore{V, A}) where {V, A}
     nk = _wz_node_key(z)
     if isempty(nk)
         return !isnothing(z.pathmap.root_val)
@@ -384,7 +382,7 @@ end
 
 Return the value at the cursor position (or `nothing`).  Mirrors `val`.
 """
-function wz_get_val(z::WriteZipperCore{V,A}) where {V,A}
+function wz_get_val(z::WriteZipperCore{V, A}) where {V, A}
     nk = collect(_wz_node_key(z))
     if isempty(nk)
         return z.pathmap.root_val
@@ -394,8 +392,7 @@ function wz_get_val(z::WriteZipperCore{V,A}) where {V,A}
 end
 
 # path relative to the zipper's origin
-wz_path(z::WriteZipperCore) =
-    view(z.prefix_buf, z.origin_path_len+1:length(z.prefix_buf))
+wz_path(z::WriteZipperCore) = view(z.prefix_buf, (z.origin_path_len + 1):length(z.prefix_buf))
 
 # =====================================================================
 # PathMap write zipper constructors
@@ -408,19 +405,19 @@ wz_path(z::WriteZipperCore) =
 
 Create a write zipper at the root of `m`.  Mirrors `PathMap::write_zipper`.
 """
-function write_zipper(m::PathMap{V,A}) where {V,A}
+function write_zipper(m::PathMap{V, A}) where {V, A}
     _ensure_root!(m)
-    root_rc = m.root::TrieNodeODRc{V,A}
+    root_rc = m.root::TrieNodeODRc{V, A}
     # Fix 2: pre-allocate prefix_buf and prefix_idx to eliminate _growend!/memmove
     # in wz_descend_to! hot path.  EXPECTED_PATH_LEN / EXPECTED_DEPTH from Zipper.jl.
-    WriteZipperCore{V,A}(
+    WriteZipperCore{V, A}(
         m,
         0,                                                     # root_key_start (0-indexed)
         sizehint!(UInt8[], EXPECTED_PATH_LEN),                 # prefix_buf pre-allocated
         0,                                                     # origin_path_len
         sizehint!(Int[], EXPECTED_DEPTH),                      # prefix_idx pre-allocated
-        TrieNodeODRc{V,A}[root_rc],                           # focus_stack: [root]
-        m.alloc
+        TrieNodeODRc{V, A}[root_rc],                           # focus_stack: [root]
+        m.alloc,
     )
 end
 
@@ -430,25 +427,25 @@ end
 Create a write zipper pre-positioned at `path`.
 Mirrors `PathMap::write_zipper_at_path`.
 """
-function write_zipper_at_path(m::PathMap{V,A}, path) where {V,A}
+function write_zipper_at_path(m::PathMap{V, A}, path) where {V, A}
     _ensure_root!(m)
     path_v = collect(UInt8, path)
     if isempty(path_v)
         return write_zipper(m)
     end
-    root_rc = m.root::TrieNodeODRc{V,A}
+    root_rc = m.root::TrieNodeODRc{V, A}
     # Build zipper with full path as prefix_buf, then descend
     # root_key_start = 0 (origin is at the absolute map root)
     # Fix 2: pre-allocate prefix_idx; path_v already has capacity from collect.
     length(path_v) < EXPECTED_PATH_LEN && sizehint!(path_v, EXPECTED_PATH_LEN)
-    z = WriteZipperCore{V,A}(
+    z = WriteZipperCore{V, A}(
         m,
         0,
         path_v,                                     # prefix_buf = path (pre-allocated)
         length(path_v),                             # origin_path_len = path.len()
         sizehint!(Int[], EXPECTED_DEPTH),           # prefix_idx pre-allocated
-        TrieNodeODRc{V,A}[root_rc],
-        m.alloc
+        TrieNodeODRc{V, A}[root_rc],
+        m.alloc,
     )
     _wz_descend_to_internal!(z)
     z
@@ -465,15 +462,15 @@ Set the value at `path` in `m`.  Returns the previously stored value.
 `path` may be a `Vector{UInt8}`, `AbstractVector{UInt8}`, `AbstractString`,
 or any other byte-iterable; no intermediate copy is made.
 """
-function set_val_at!(m::PathMap{V,A}, path::AbstractVector{UInt8}, val::V) where {V,A}
+function set_val_at!(m::PathMap{V, A}, path::AbstractVector{UInt8}, val::V) where {V, A}
     z = write_zipper(m)
     wz_descend_to!(z, path)
     wz_set_val!(z, val)
 end
-function set_val_at!(m::PathMap{V,A}, path::AbstractString, val::V) where {V,A}
+function set_val_at!(m::PathMap{V, A}, path::AbstractString, val::V) where {V, A}
     set_val_at!(m, codeunits(path), val)
 end
-function set_val_at!(m::PathMap{V,A}, path, val::V) where {V,A}
+function set_val_at!(m::PathMap{V, A}, path, val::V) where {V, A}
     set_val_at!(m, collect(UInt8, path), val)
 end
 
@@ -482,15 +479,15 @@ end
 
 Remove the value at `path` in `m`.  Returns the removed value.
 """
-function remove_val_at!(m::PathMap{V,A}, path::AbstractVector{UInt8}, prune::Bool=false) where {V,A}
+function remove_val_at!(m::PathMap{V, A}, path::AbstractVector{UInt8}, prune::Bool = false) where {V, A}
     m.root === nothing && return nothing
     z = write_zipper_at_path(m, path)
     wz_remove_val!(z, prune)
 end
-function remove_val_at!(m::PathMap{V,A}, path::AbstractString, prune::Bool=false) where {V,A}
+function remove_val_at!(m::PathMap{V, A}, path::AbstractString, prune::Bool = false) where {V, A}
     remove_val_at!(m, codeunits(path), prune)
 end
-function remove_val_at!(m::PathMap{V,A}, path, prune::Bool=false) where {V,A}
+function remove_val_at!(m::PathMap{V, A}, path, prune::Bool = false) where {V, A}
     remove_val_at!(m, collect(UInt8, path), prune)
 end
 
@@ -502,10 +499,10 @@ end
 # Non-root: delegate to get_node_at_key on the focus node.
 # At root: wrap the root TrieNodeODRc as ANRBorrowedRc.
 
-function _wz_get_focus_anr(z::WriteZipperCore{V,A}) where {V,A}
+function _wz_get_focus_anr(z::WriteZipperCore{V, A}) where {V, A}
     nk = collect(_wz_node_key(z))
     if isempty(nk)
-        ANRBorrowedRc{V,A}(z.focus_stack[1])
+        ANRBorrowedRc{V, A}(z.focus_stack[1])
     else
         get_node_at_key(z.focus_stack[end].node, nk)
     end
@@ -516,7 +513,7 @@ end
 # =====================================================================
 #
 # Mirrors WriteZipperCore::remove_branches (write_zipper.rs:1948).
-function _wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool) where {V,A}
+function _wz_remove_branches!(z::WriteZipperCore{V, A}, prune::Bool) where {V, A}
     _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     if !isempty(nk)
@@ -529,7 +526,7 @@ function _wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool) where {V,A}
         if node_is_empty(z.focus_stack[1].node)
             return false
         end
-        empty_rc = TrieNodeODRc(LineListNode{V,A}(z.alloc), z.alloc)
+        empty_rc = TrieNodeODRc(LineListNode{V, A}(z.alloc), z.alloc)
         z.pathmap.root = empty_rc
         z.focus_stack[1] = empty_rc
         true
@@ -545,14 +542,13 @@ end
 # at root (node_key empty) → direct stack/pathmap root replacement
 # otherwise → node_set_branch! via _wz_in_mut_static_result!
 
-function _wz_graft_internal!(z::WriteZipperCore{V,A},
-                              src::Union{Nothing,TrieNodeODRc{V,A}}) where {V,A}
+function _wz_graft_internal!(z::WriteZipperCore{V, A}, src::Union{Nothing, TrieNodeODRc{V, A}}) where {V, A}
     if src !== nothing
         nk = collect(_wz_node_key(z))
         if !isempty(nk)
-            sub_branch_added = _wz_in_mut_static_result!(z,
-                (node, key) -> node_set_branch!(node, key, src),
-                (_, _)      -> true)
+            sub_branch_added = _wz_in_mut_static_result!(
+                z, (node, key) -> node_set_branch!(node, key, src), (_, _) -> true
+            )
             if sub_branch_added
                 _wz_mend_root!(z)
                 _wz_descend_to_internal!(z)
@@ -578,7 +574,7 @@ end
 
 Replace the subtrie at the cursor with `src_anr`'s subtrie.
 """
-function wz_graft!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A}) where {V,A}
+function wz_graft!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}) where {V, A}
     _wz_graft_internal!(z, into_option(src_anr))
 end
 
@@ -587,7 +583,7 @@ end
 
 Replace the subtrie at the cursor with `map`'s root node.
 """
-function wz_graft_map!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,A}
+function wz_graft_map!(z::WriteZipperCore{V, A}, map::PathMap{V, A}) where {V, A}
     # copy() bumps the refcount so both map and the graft site track sharing;
     # make_unique! at write time will then COW-clone before any mutation.
     src = map.root !== nothing ? copy(map.root) : nothing
@@ -606,11 +602,10 @@ end
 
 Join (lattice-sup) self's subtrie with `src_anr`. Result written to self.
 """
-function wz_join_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A}) where {V,A}
+function wz_join_into!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}) where {V, A}
     if is_none(src_anr) || node_is_empty(as_tagged(src_anr))
         focus_anr = _wz_get_focus_anr(z)
-        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ?
-               ALG_STATUS_NONE : ALG_STATUS_IDENTITY
+        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ? ALG_STATUS_NONE : ALG_STATUS_IDENTITY
     end
     focus_anr = _wz_get_focus_anr(z)
     if is_none(focus_anr)
@@ -627,8 +622,11 @@ function wz_join_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A}) w
         _wz_graft_internal!(z, result.value)
         ALG_STATUS_ELEMENT
     elseif result isa AlgResIdentity
-        result.mask & SELF_IDENT > 0 ? ALG_STATUS_IDENTITY :
+        if result.mask & SELF_IDENT > 0
+            ALG_STATUS_IDENTITY
+        else
             (_wz_graft_internal!(z, into_option(src_anr)); ALG_STATUS_ELEMENT)
+        end
     else
         _wz_graft_internal!(z, nothing)
         ALG_STATUS_NONE
@@ -646,12 +644,11 @@ end
 
 Join self's subtrie with `map`. Result written to self.
 """
-function wz_join_map_into!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,A}
+function wz_join_map_into!(z::WriteZipperCore{V, A}, map::PathMap{V, A}) where {V, A}
     src_rc = map.root
     if src_rc === nothing
         focus_anr = _wz_get_focus_anr(z)
-        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ?
-               ALG_STATUS_NONE : ALG_STATUS_IDENTITY
+        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ? ALG_STATUS_NONE : ALG_STATUS_IDENTITY
     end
     focus_anr = _wz_get_focus_anr(z)
     if is_none(focus_anr)
@@ -669,8 +666,7 @@ function wz_join_map_into!(z::WriteZipperCore{V,A}, map::PathMap{V,A}) where {V,
         ALG_STATUS_ELEMENT
     elseif result isa AlgResIdentity
         # src_rc is from map.root — copy() so both map and graft site track sharing
-        result.mask & SELF_IDENT > 0 ? ALG_STATUS_IDENTITY :
-            (_wz_graft_internal!(z, copy(src_rc)); ALG_STATUS_ELEMENT)
+        result.mask & SELF_IDENT > 0 ? ALG_STATUS_IDENTITY : (_wz_graft_internal!(z, copy(src_rc)); ALG_STATUS_ELEMENT)
     else
         _wz_graft_internal!(z, nothing)
         ALG_STATUS_NONE
@@ -696,8 +692,7 @@ without any DFS traversal. Mirrors upstream PathMap commit `ade1e1b`
 
 Mirrors `WriteZipperCore::meet_into` (write_zipper.rs:1718).
 """
-function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
-                       prune::Bool=false) where {V,A}
+function wz_meet_into!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}, prune::Bool = false) where {V, A}
     focus_anr = _wz_get_focus_anr(z)
     if is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))
         return ALG_STATUS_NONE
@@ -715,8 +710,11 @@ function wz_meet_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
         _wz_graft_internal!(z, result.value)
         ALG_STATUS_ELEMENT
     elseif result isa AlgResIdentity
-        result.mask & SELF_IDENT > 0 ? ALG_STATUS_IDENTITY :
+        if result.mask & SELF_IDENT > 0
+            ALG_STATUS_IDENTITY
+        else
             (_wz_graft_internal!(z, into_option(src_anr)); ALG_STATUS_ELEMENT)
+        end
     else
         _wz_graft_internal!(z, nothing)
         prune && wz_prune_path!(z)
@@ -743,8 +741,7 @@ immediately without any DFS traversal. Mirrors upstream PathMap commit `ade1e1b`
 
 Mirrors `WriteZipperCore::subtract_into` (write_zipper.rs:1829).
 """
-function wz_subtract_into!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A},
-                            prune::Bool=false) where {V,A}
+function wz_subtract_into!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}, prune::Bool = false) where {V, A}
     focus_anr = _wz_get_focus_anr(z)
     self_empty = is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))
     if is_none(src_anr)
@@ -784,7 +781,7 @@ end
 
 Restrict self's subtrie to paths present in `src_anr`.
 """
-function wz_restrict!(z::WriteZipperCore{V,A}, src_anr::AbstractNodeRef{V,A}) where {V,A}
+function wz_restrict!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}) where {V, A}
     if is_none(src_anr)
         _wz_graft_internal!(z, nothing)
         return ALG_STATUS_NONE
@@ -827,9 +824,7 @@ Remove the first `byte_cnt` bytes from every path below the cursor,
 joining any paths that collide.  Returns true if the subtrie is non-empty.
 Mirrors `WriteZipperCore::join_k_path_into` (write_zipper.rs:1617).
 """
-function wz_join_k_path_into!(z::WriteZipperCore{V,A},
-                               byte_cnt::Int,
-                               prune::Bool = true) where {V,A}
+function wz_join_k_path_into!(z::WriteZipperCore{V, A}, byte_cnt::Int, prune::Bool = true) where {V, A}
     focus_anr = _wz_get_focus_anr(z)
     if is_none(focus_anr)
         prune && _wz_prune_path_internal!(z)
@@ -862,8 +857,7 @@ the inverse direction of `wz_restrict!`.
 Returns true if src was non-empty and z had content.
 Mirrors `WriteZipperCore::restricting` (write_zipper.rs:1927).
 """
-function wz_restricting!(z::WriteZipperCore{V,A},
-                          src_anr::AbstractNodeRef{V,A}) where {V,A}
+function wz_restricting!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}) where {V, A}
     is_none(src_anr) && return false
     focus_anr = _wz_get_focus_anr(z)
     is_none(focus_anr) && return false
@@ -910,7 +904,7 @@ Mirrors `ZipperMoving::at_root`.
 Reset the zipper to its origin root.
 Mirrors `WriteZipperCore::reset` (write_zipper.rs:982).
 """
-function wz_reset!(z::WriteZipperCore{V,A}) where {V,A}
+function wz_reset!(z::WriteZipperCore{V, A}) where {V, A}
     # Pop back to root frame
     while length(z.focus_stack) > 1
         pop!(z.focus_stack)
@@ -926,7 +920,7 @@ end
 Returns a `ByteMask` of which byte-branches exist at the cursor position.
 Mirrors `WriteZipperCore::child_mask` (write_zipper.rs:922).
 """
-function wz_child_mask(z::WriteZipperCore{V,A}) where {V,A}
+function wz_child_mask(z::WriteZipperCore{V, A}) where {V, A}
     isempty(z.focus_stack) && return ByteMask()
     focus_node = z.focus_stack[end].node
     nk = collect(_wz_node_key(z))
@@ -938,7 +932,7 @@ function wz_child_mask(z::WriteZipperCore{V,A}) where {V,A}
         consumed, child_rc = result
         child_node = as_tagged(child_rc)
         if length(nk) >= consumed
-            return node_branches_mask(child_node, nk[consumed+1:end])
+            return node_branches_mask(child_node, nk[(consumed + 1):end])
         else
             return ByteMask()
         end
@@ -952,7 +946,7 @@ end
 Returns the number of byte-branches at the cursor position.
 Mirrors `WriteZipperCore::child_count` (write_zipper.rs:914).
 """
-function wz_child_count(z::WriteZipperCore{V,A}) where {V,A}
+function wz_child_count(z::WriteZipperCore{V, A}) where {V, A}
     isempty(z.focus_stack) && return 0
     focus_node = z.focus_stack[end].node
     nk = collect(_wz_node_key(z))
@@ -965,7 +959,7 @@ end
 Returns the number of values in the subtrie rooted at the cursor.
 Mirrors `WriteZipperCore::val_count` (write_zipper.rs:997).
 """
-function wz_val_count(z::WriteZipperCore{V,A}) where {V,A}
+function wz_val_count(z::WriteZipperCore{V, A}) where {V, A}
     root_val = wz_is_val(z) ? 1 : 0
     focus_anr = _wz_get_focus_anr(z)
     is_none(focus_anr) && return root_val
@@ -1066,7 +1060,7 @@ Remove and return the subtrie at the cursor.
 If `prune`, empty ancestor paths are pruned.
 Mirrors `WriteZipperCore::take_focus` (write_zipper.rs:2057).
 """
-function wz_take_focus!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
+function wz_take_focus!(z::WriteZipperCore{V, A}, prune::Bool = false) where {V, A}
     focus_anr = _wz_get_focus_anr(z)
     is_none(focus_anr) && return nothing
     rc = into_option(focus_anr)
@@ -1082,9 +1076,9 @@ end
 Remove and return a PathMap snapshot at the cursor.
 Mirrors `WriteZipperCore::take_map` (write_zipper.rs:1973).
 """
-function wz_take_map!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
+function wz_take_map!(z::WriteZipperCore{V, A}, prune::Bool = false) where {V, A}
     root_node = wz_take_focus!(z, prune)
-    root_node === nothing ? nothing : PathMap{V,A}(z.alloc, root_node, nothing)
+    root_node === nothing ? nothing : PathMap{V, A}(z.alloc, root_node, nothing)
 end
 
 # =====================================================================
@@ -1096,10 +1090,11 @@ end
 
 """
     wz_prune_path!(z) → Int
+
 Remove dangling path at the cursor.  Returns bytes pruned.
 Mirrors `WriteZipperCore::prune_path`.
 """
-function wz_prune_path!(z::WriteZipperCore{V,A}) where {V,A}
+function wz_prune_path!(z::WriteZipperCore{V, A}) where {V, A}
     nk = collect(_wz_node_key(z))
     isempty(nk) && return 0
     focus_node = z.focus_stack[end].node
@@ -1110,9 +1105,10 @@ end
 
 """
     _wz_prune_path_internal!(z) → Int
+
 Ascend and remove empty ancestor nodes.  Internal; mirrors `prune_path_internal`.
 """
-function _wz_prune_path_internal!(z::WriteZipperCore{V,A}) where {V,A}
+function _wz_prune_path_internal!(z::WriteZipperCore{V, A}) where {V, A}
     pruned = 0
     while true
         inner = z.focus_stack[end].node
@@ -1142,11 +1138,12 @@ end
 
 """
     wz_remove_branches!(z, prune=false) → Bool
+
 Remove all branches at the cursor position.
 Returns `true` if any branches were removed.
 Mirrors `WriteZipperCore::remove_branches`.
 """
-function wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool=false) where {V,A}
+function wz_remove_branches!(z::WriteZipperCore{V, A}, prune::Bool = false) where {V, A}
     _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
@@ -1160,7 +1157,7 @@ function wz_remove_branches!(z::WriteZipperCore{V,A}, prune::Bool=false) where {
         # At root: replace with empty node
         wz_at_root(z) || return false
         node_is_empty(focus_node) && return false
-        empty_rc = TrieNodeODRc(LineListNode{V,A}(z.alloc), z.alloc)
+        empty_rc = TrieNodeODRc(LineListNode{V, A}(z.alloc), z.alloc)
         z.pathmap.root = empty_rc
         z.focus_stack[1] = empty_rc
         true
@@ -1175,11 +1172,11 @@ end
 
 """
     wz_remove_unmasked_branches!(z, mask::ByteMask, prune=false)
+
 Remove all branches whose first byte is NOT set in `mask`.
 Mirrors `WriteZipperCore::remove_unmasked_branches`.
 """
-function wz_remove_unmasked_branches!(z::WriteZipperCore{V,A},
-                                       mask::ByteMask, prune::Bool=false) where {V,A}
+function wz_remove_unmasked_branches!(z::WriteZipperCore{V, A}, mask::ByteMask, prune::Bool = false) where {V, A}
     _wz_ensure_write_unique!(z)
     nk = collect(_wz_node_key(z))
     focus_node = z.focus_stack[end].node
@@ -1197,16 +1194,17 @@ end
 
 """
     wz_create_path!(z) → Bool
+
 Create a dangling (no value) path at the cursor.
 Returns `true` if the path was newly created.
 Mirrors `WriteZipperCore::create_path`.
 """
-function wz_create_path!(z::WriteZipperCore{V,A}) where {V,A}
+function wz_create_path!(z::WriteZipperCore{V, A}) where {V, A}
     nk = collect(_wz_node_key(z))
     isempty(nk) && return false   # at root — can't create dangling
-    (created_path, created_subnode) = _wz_in_mut_static_result!(z,
-        (node, key) -> node_create_dangling!(node, key),
-        (_, _)      -> (true, true))
+    (created_path, created_subnode) = _wz_in_mut_static_result!(
+        z, (node, key) -> node_create_dangling!(node, key), (_, _) -> (true, true)
+    )
     if created_subnode
         _wz_mend_root!(z)
         _wz_descend_to_internal!(z)
@@ -1221,10 +1219,8 @@ end
 # Mirrors `make_parents_in` (write_zipper.rs:2415).
 # Creates a fresh LineListNode with `prefix` as the edge to `child_rc`.
 
-function _wz_make_parent_node(prefix::Vector{UInt8},
-                               child_rc::TrieNodeODRc{V,A},
-                               alloc::A) where {V,A}
-    new_node = LineListNode{V,A}(alloc)
+function _wz_make_parent_node(prefix::Vector{UInt8}, child_rc::TrieNodeODRc{V, A}, alloc::A) where {V, A}
+    new_node = LineListNode{V, A}(alloc)
     result   = node_set_branch!(new_node, prefix, child_rc)
     # node_set_branch! on a fresh empty node won't upgrade, but handle it anyway
     result isa TrieNodeODRc ? result : TrieNodeODRc(new_node, alloc)
@@ -1247,12 +1243,12 @@ E.g. cursor at `"123:"`, `insert_prefix("pet:")` → all paths become
 `"123:pet:…"`.  Returns `false` if the focus is empty.
 Mirrors `WriteZipperCore::insert_prefix`.
 """
-function wz_insert_prefix!(z::WriteZipperCore{V,A}, prefix) where {V,A}
+function wz_insert_prefix!(z::WriteZipperCore{V, A}, prefix) where {V, A}
     prefix_v  = collect(UInt8, prefix)
     focus_anr = _wz_get_focus_anr(z)
     is_none(focus_anr) && return false
-    focus_rc  = into_option(focus_anr)
-    focus_rc  === nothing && return false
+    focus_rc = into_option(focus_anr)
+    focus_rc === nothing && return false
     new_parent = _wz_make_parent_node(prefix_v, focus_rc, z.alloc)
     _wz_graft_internal!(z, new_parent)
     true
@@ -1276,8 +1272,8 @@ cursor.  E.g. cursor at `":Pam"`, `remove_prefix(4)` lifts the subtrie
 up by 4 bytes.  Returns `false` if the zipper couldn't ascend `n` bytes.
 Mirrors `WriteZipperCore::remove_prefix`.
 """
-function wz_remove_prefix!(z::WriteZipperCore{V,A}, n::Int) where {V,A}
-    downstream    = into_option(_wz_get_focus_anr(z))
+function wz_remove_prefix!(z::WriteZipperCore{V, A}, n::Int) where {V, A}
+    downstream = into_option(_wz_get_focus_anr(z))
     fully_ascended = wz_ascend!(z, n)
     _wz_graft_internal!(z, downstream)
     fully_ascended
@@ -1293,6 +1289,7 @@ end
 
 """
     wz_get_val_mut(z) → Union{Nothing, V}
+
 Return the value at the cursor (Julia mutable equivalent: get then set_val!).
 Mirrors `WriteZipperCore::get_val_mut`.
 """
@@ -1300,10 +1297,11 @@ wz_get_val_mut(z::WriteZipperCore) = wz_get_val(z)
 
 """
     wz_get_or_set_val!(z, default::V) → V
+
 Return the value at the cursor, setting `default` if none exists.
 Mirrors `WriteZipperCore::get_val_or_set_mut`.
 """
-function wz_get_or_set_val!(z::WriteZipperCore{V,A}, default::V) where {V,A}
+function wz_get_or_set_val!(z::WriteZipperCore{V, A}, default::V) where {V, A}
     wz_is_val(z) || wz_set_val!(z, default)
     wz_get_val(z)::V
 end
@@ -1316,17 +1314,15 @@ end
 
 """
     wz_join_into_take!(z, src_anr, prune=false) → AlgebraicStatus
+
 Join `src_anr` subtrie into `z`, consuming the src.
 Returns the algebraic status of the operation.
 Mirrors `WriteZipperCore::join_into_take`.
 """
-function wz_join_into_take!(z::WriteZipperCore{V,A},
-                              src_anr::AbstractNodeRef{V,A},
-                              prune::Bool=false) where {V,A}
+function wz_join_into_take!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V, A}, prune::Bool = false) where {V, A}
     if is_none(src_anr)
         focus_anr = _wz_get_focus_anr(z)
-        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ?
-               ALG_STATUS_NONE : ALG_STATUS_IDENTITY
+        return (is_none(focus_anr) || node_is_empty(as_tagged(focus_anr))) ? ALG_STATUS_NONE : ALG_STATUS_IDENTITY
     end
     src_rc = into_option(src_anr)
     src_rc === nothing && return ALG_STATUS_NONE

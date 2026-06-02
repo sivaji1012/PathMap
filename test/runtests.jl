@@ -3,15 +3,14 @@ using PathMap
 const PM = PathMap.PathMap   # PathMap module and PathMap type share the same name
 
 @testset "PathMap" begin
-
     @testset "basic CRUD" begin
         m = PM{Int}()
         set_val_at!(m, b"alpha", 1)
-        set_val_at!(m, b"beta",  2)
+        set_val_at!(m, b"beta", 2)
         set_val_at!(m, b"gamma", 3)
 
         @test get_val_at(m, b"alpha") == 1
-        @test get_val_at(m, b"beta")  == 2
+        @test get_val_at(m, b"beta") == 2
         @test get_val_at(m, b"missing") === nothing
         @test path_exists_at(m, b"alpha")
         @test !path_exists_at(m, b"missing")
@@ -49,8 +48,10 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
     @testset "algebraic ops (psubtract)" begin
         a = PM{Bool}()
         b = PM{Bool}()
-        set_val_at!(a, b"x", true); set_val_at!(a, b"y", true)
-        set_val_at!(b, b"y", true); set_val_at!(b, b"z", true)
+        set_val_at!(a, b"x", true);
+        set_val_at!(a, b"y", true)
+        set_val_at!(b, b"y", true);
+        set_val_at!(b, b"z", true)
 
         # Subtract: a - b = {x}
         result = deepcopy(a)
@@ -64,8 +65,10 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
     @testset "policy API" begin
         a = PM{Int}()
         b = PM{Int}()
-        set_val_at!(a, b"x", 3); set_val_at!(a, b"y", 1)
-        set_val_at!(b, b"x", 2); set_val_at!(b, b"z", 5)
+        set_val_at!(a, b"x", 3);
+        set_val_at!(a, b"y", 1)
+        set_val_at!(b, b"x", 2);
+        set_val_at!(b, b"z", 5)
 
         r = pjoin_policy(a, b, SumPolicy())
         @test get_val_at(r, b"x") == 5   # 3+2
@@ -81,8 +84,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         for i in 1:5
             set_val_at!(m, Vector{UInt8}("k$i"), i)
         end
-        total = cata_cached(m, (mask, children, val) ->
-            (val !== nothing ? val : 0) + reduce(+, children, init=0))
+        total = cata_cached(m, (mask, children, val) -> (val !== nothing ? val : 0) + reduce(+, children, init = 0))
         @test total == 15   # 1+2+3+4+5
 
         h = map_hash(m)
@@ -106,7 +108,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         set_val_at!(m2, b"penguin", 2)
         wz2 = write_zipper(m2)
         @test wz_insert_prefix!(wz2, b"bird:") == true
-        @test get_val_at(m2, b"bird:eagle")   == 1
+        @test get_val_at(m2, b"bird:eagle") == 1
         @test get_val_at(m2, b"bird:penguin") == 2
         @test get_val_at(m2, b"eagle") === nothing
     end
@@ -125,13 +127,13 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         wz_set_val!(wz2, 99)
 
         @test get_val_at(m2, b"prefix:hello") == 99
-        @test get_val_at(m1, b"hello")         == 42   # unchanged
+        @test get_val_at(m1, b"hello") == 42   # unchanged
     end
 
     @testset "serialization round-trip" begin
         m = PM{Bool}()
         set_val_at!(m, b"alpha", true)
-        set_val_at!(m, b"beta",  true)
+        set_val_at!(m, b"beta", true)
         io = IOBuffer()
         serialize_paths(m, io)
         seekstart(io)
@@ -144,9 +146,9 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
     @testset "ArenaCompact mmap round-trip" begin
         m = PM{UInt64}()
-        set_val_at!(m, b"alpha",  UInt64(42))
-        set_val_at!(m, b"beta",   UInt64(99))
-        set_val_at!(m, b"gamma",  UInt64(7))
+        set_val_at!(m, b"alpha", UInt64(42))
+        set_val_at!(m, b"beta", UInt64(99))
+        set_val_at!(m, b"gamma", UInt64(7))
 
         tree_vec = act_from_zipper(m, v -> v)
         tmpfile  = tempname() * ".act"
@@ -157,9 +159,9 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test length(tree_mmap.data) == filesize(tmpfile)
         @test tree_mmap.data[1:8] == ACT_MAGIC
 
-        @test act_get_val_at(tree_mmap, b"alpha")   === UInt64(42)
-        @test act_get_val_at(tree_mmap, b"beta")    === UInt64(99)
-        @test act_get_val_at(tree_mmap, b"gamma")   === UInt64(7)
+        @test act_get_val_at(tree_mmap, b"alpha") === UInt64(42)
+        @test act_get_val_at(tree_mmap, b"beta") === UInt64(99)
+        @test act_get_val_at(tree_mmap, b"gamma") === UInt64(7)
         @test act_get_val_at(tree_mmap, b"missing") === nothing
 
         # act_open_mmap and act_open must agree on all keys
@@ -171,7 +173,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         z = act_read_zipper(tree_mmap)
         @test act_val_count(z) == 3
 
-        rm(tmpfile; force=true)
+        rm(tmpfile; force = true)
     end
 
     @testset "remove_val_at! with prune" begin
@@ -191,14 +193,14 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         m = PM{Int}()
         set_val_at!(m, b"foo:a", 10)
         set_val_at!(m, b"foo:b", 20)
-        set_val_at!(m, b"bar",   30)
+        set_val_at!(m, b"bar", 30)
 
         wz = write_zipper_at_path(m, b"foo:")
         wz_remove_branches!(wz, true)
 
         @test get_val_at(m, b"foo:a") === nothing
         @test get_val_at(m, b"foo:b") === nothing
-        @test get_val_at(m, b"bar")   === 30
+        @test get_val_at(m, b"bar") === 30
     end
 
     @testset "wz_subtract_into! with prune=true removes dangling paths" begin
@@ -215,8 +217,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
         result = deepcopy(a)
         wz = write_zipper(result)
-        src_anr = b.root === nothing ? ANRNone{Int, GlobalAlloc}() :
-                  ANRBorrowedRc{Int, GlobalAlloc}(b.root)
+        src_anr = b.root === nothing ? ANRNone{Int, GlobalAlloc}() : ANRBorrowedRc{Int, GlobalAlloc}(b.root)
         status = wz_subtract_into!(wz, src_anr, true)
 
         @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_NONE
@@ -238,8 +239,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
         result = deepcopy(a)
         wz = write_zipper(result)
-        src_anr = b.root === nothing ? ANRNone{Bool, GlobalAlloc}() :
-                  ANRBorrowedRc{Bool, GlobalAlloc}(b.root)
+        src_anr = b.root === nothing ? ANRNone{Bool, GlobalAlloc}() : ANRBorrowedRc{Bool, GlobalAlloc}(b.root)
         status = wz_meet_into!(wz, src_anr, true)
 
         @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_IDENTITY
@@ -253,7 +253,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         a = PM{Bool}()
         set_val_at!(a, b"prefix:foo", true)
         set_val_at!(a, b"prefix:bar", true)
-        set_val_at!(a, b"other",      true)
+        set_val_at!(a, b"other", true)
 
         result = deepcopy(a)
         wz = write_zipper_at_path(result, b"prefix:")
@@ -272,31 +272,33 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # iteration to a root ProductZipper over the same leaves — for BOTH
         # branching prefixes (node boundary) and single-path prefixes
         # (mid-compressed-edge, which the naive tr_get_focus_rc path dropped).
-        drive(prz) = begin
+        drive(prz)           = begin
             out = String[]
             while pz_to_next_val!(prz)
                 push!(out, String(copy(collect(pz_path(prz)))))
             end
             sort!(out)
         end
-        root_pz(m, n)        = ProductZipper(read_zipper(m),
-                                             [read_zipper(m) for _ in 2:n])
+        root_pz(m, n)        = ProductZipper(read_zipper(m), [read_zipper(m) for _ in 2:n])
         anchored_pz(m, p, n) = ProductZipper(m, Vector{UInt8}(p), n)
 
         # (1) branching prefix: {foo,bar} under "a/"  vs  flat {foo,bar}
         flatAB = PM{UnitVal}()
-        set_val_at!(flatAB, b"foo", UNIT_VAL); set_val_at!(flatAB, b"bar", UNIT_VAL)
+        set_val_at!(flatAB, b"foo", UNIT_VAL);
+        set_val_at!(flatAB, b"bar", UNIT_VAL)
         preAB = PM{UnitVal}()
-        set_val_at!(preAB, b"a/foo", UNIT_VAL); set_val_at!(preAB, b"a/bar", UNIT_VAL)
+        set_val_at!(preAB, b"a/foo", UNIT_VAL);
+        set_val_at!(preAB, b"a/bar", UNIT_VAL)
         @test drive(anchored_pz(preAB, "a/", 2)) == drive(root_pz(flatAB, 2))
         # and no result carries the raw prefix byte 'a'
-        @test !any(s -> !isempty(s) && codeunits(s)[1] == UInt8('a'),
-                   drive(anchored_pz(preAB, "a/", 2)))
+        @test !any(s -> !isempty(s) && codeunits(s)[1] == UInt8('a'), drive(anchored_pz(preAB, "a/", 2)))
 
         # (2) single-path prefix: {foo} under "b/" vs flat {foo}
         #     (mid-compressed-edge — the case that returned empty pre-fix)
-        flatC = PM{UnitVal}(); set_val_at!(flatC, b"foo", UNIT_VAL)
-        preC  = PM{UnitVal}(); set_val_at!(preC,  b"b/foo", UNIT_VAL)
+        flatC = PM{UnitVal}();
+        set_val_at!(flatC, b"foo", UNIT_VAL)
+        preC  = PM{UnitVal}();
+        set_val_at!(preC, b"b/foo", UNIT_VAL)
         @test drive(anchored_pz(preC, "b/", 2)) == drive(root_pz(flatC, 2))
         @test !isempty(drive(anchored_pz(preC, "b/", 2)))   # not silently empty
 
@@ -309,7 +311,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         m = PM{Int}()
         set_val_at!(m, b"path:a:k1", 7)
         set_val_at!(m, b"path:a:k2", 8)
-        set_val_at!(m, b"other",     9)
+        set_val_at!(m, b"other", 9)
 
         # Position cursor at the "path:a:" subtree (no val, two children).
         wz = write_zipper_at_path(m, b"path:a:")
@@ -320,7 +322,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test get_val_at(m, b"path:a:k1") === nothing
         @test get_val_at(m, b"path:a:k2") === nothing
         # Unrelated key is untouched.
-        @test get_val_at(m, b"other")     === 9
+        @test get_val_at(m, b"other") === 9
         # And the now-empty "path:" spine is pruned (prune=true).
         @test wz_val_count(write_zipper_at_path(m, b"path:")) == 0
     end
@@ -344,8 +346,8 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # m_view loses the branches; m_src must not.
         @test get_val_at(m_view, b"copy:shared:k1") === nothing
         @test get_val_at(m_view, b"copy:shared:k2") === nothing
-        @test get_val_at(m_src,  b"shared:k1")      === 1
-        @test get_val_at(m_src,  b"shared:k2")      === 2
+        @test get_val_at(m_src, b"shared:k1") === 1
+        @test get_val_at(m_src, b"shared:k2") === 2
     end
 
     @testset "PrefixZipper pz_descend_to_existing! is byte-correct on String input" begin
@@ -489,5 +491,4 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # And the spine itself is gone (val_count under "deep:" == 0).
         @test wz_val_count(write_zipper_at_path(m, b"deep:")) == 0
     end
-
 end

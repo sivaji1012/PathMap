@@ -45,12 +45,14 @@ Result of an algebraic operation on elements in a partial lattice.
 1:1 port of `pathmap::ring::AlgebraicResult<V>`.
 
 Three variants (as Julia Union):
+
   - `AlgResNone()` — operands annihilate; result should be discarded
   - `AlgResIdentity(mask::UInt64)` — result is identical to operand(s)
     indicated by the bitmask (SELF_IDENT / COUNTER_IDENT)
   - `AlgResElement{V}(value::V)` — novel result value
 
 **Invariants (respect or behavior is undefined):**
+
   - Identity mask must be non-zero for `AlgResIdentity`
   - Bits beyond operation arity must not be set (e.g., arity-2 ops set
     only bit 0 and/or bit 1)
@@ -173,9 +175,9 @@ Values are ordered (lowest to highest): `Element < Identity < None`.
 Higher values make stronger guarantees about the operation outcome.
 """
 @enum AlgebraicStatus::UInt8 begin
-    ALG_STATUS_ELEMENT   = 0   # self contains the operation's output
-    ALG_STATUS_IDENTITY  = 1   # self was unmodified by the operation
-    ALG_STATUS_NONE      = 2   # self was annihilated, now empty
+    ALG_STATUS_ELEMENT  = 0   # self contains the operation's output
+    ALG_STATUS_IDENTITY = 1   # self was unmodified by the operation
+    ALG_STATUS_NONE     = 2   # self was annihilated, now empty
 end
 
 is_none(s::AlgebraicStatus)     = s == ALG_STATUS_NONE
@@ -190,15 +192,14 @@ operand values were already `None` (true) or made None by the operation
 (false). For ops that can't convert non-None to None (like join), pass
 `(true, true)`.
 """
-function merge_status(a::AlgebraicStatus, b::AlgebraicStatus,
-                      a_none::Bool, b_none::Bool)::AlgebraicStatus
+function merge_status(a::AlgebraicStatus, b::AlgebraicStatus, a_none::Bool, b_none::Bool)::AlgebraicStatus
     if a == ALG_STATUS_NONE
-        b == ALG_STATUS_NONE     && return ALG_STATUS_NONE
-        b == ALG_STATUS_ELEMENT  && return ALG_STATUS_ELEMENT
+        b == ALG_STATUS_NONE && return ALG_STATUS_NONE
+        b == ALG_STATUS_ELEMENT && return ALG_STATUS_ELEMENT
         # b == ALG_STATUS_IDENTITY
         return a_none ? ALG_STATUS_IDENTITY : ALG_STATUS_ELEMENT
     elseif a == ALG_STATUS_IDENTITY
-        b == ALG_STATUS_ELEMENT  && return ALG_STATUS_ELEMENT
+        b == ALG_STATUS_ELEMENT && return ALG_STATUS_ELEMENT
         b == ALG_STATUS_IDENTITY && return ALG_STATUS_IDENTITY
         # b == ALG_STATUS_NONE
         return b_none ? ALG_STATUS_IDENTITY : ALG_STATUS_ELEMENT
@@ -222,7 +223,7 @@ end
     from_status(status::AlgebraicStatus, element_f) -> AlgebraicResult
 """
 function from_status(s::AlgebraicStatus, element_f)
-    s == ALG_STATUS_NONE     && return AlgResNone()
+    s == ALG_STATUS_NONE && return AlgResNone()
     s == ALG_STATUS_IDENTITY && return AlgResIdentity(SELF_IDENT)
     return AlgResElement(element_f())
 end
@@ -255,6 +256,7 @@ element value. Allows operations that produce identity results to
 ALSO carry the materialized value. 1:1 port of `pathmap::ring::FatAlgebraicResult`.
 
 Fields:
+
   - `identity_mask::UInt64` — bitmask of which inputs equal the result
     (0 indicates no identity / Element or None result)
   - `element::Union{V, Nothing}` — materialized value or nothing
@@ -297,6 +299,7 @@ Supertype for types implementing union (`pjoin`) and intersection
 (`pmeet`) operations. 1:1 port of `pathmap::ring::Lattice`.
 
 Concrete subtypes implement:
+
   - `pjoin(a::T, b::T) -> AlgebraicResult{T}`
   - `pmeet(a::T, b::T) -> AlgebraicResult{T}`
 
@@ -338,8 +341,7 @@ end
 Internal helper for default `join_into!`/`meet_into!` impls. 1:1 port of
 `in_place_default_impl`.
 """
-function _in_place_default_impl!(result::AlgebraicResult, self_ref, other,
-                                 default_f, convert_f)::AlgebraicStatus
+function _in_place_default_impl!(result::AlgebraicResult, self_ref, other, default_f, convert_f)::AlgebraicStatus
     if is_none(result)
         default_f(self_ref)
         return ALG_STATUS_NONE
@@ -366,6 +368,7 @@ Supertype for lattices that also implement set-difference (`psubtract`).
 1:1 port of `pathmap::ring::DistributiveLattice`.
 
 Concrete subtypes implement:
+
   - `psubtract(a::T, b::T) -> AlgebraicResult{T}`
 """
 abstract type AbstractDistributiveLattice <: AbstractLattice end
@@ -464,7 +467,8 @@ function psubtract(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{
     else
         b === nothing && return AlgResIdentity(SELF_IDENT)
         # Rebind to V to avoid recursing back into this Union{Nothing,V} overload
-        av::V = a; bv::V = b
+        av::V = a;
+        bv::V = b
         r = psubtract(av, bv)
         if is_none(r)
             return AlgResElement{Union{Nothing, V}}(nothing)
@@ -522,8 +526,7 @@ end
 
 # psubtract for signed ints: equal → None, otherwise Identity(SELF)
 for T in (Int8, Int16, Int32, Int64, Int128)
-    @eval psubtract(a::$T, b::$T)::AlgebraicResult{$T} =
-        a == b ? AlgResNone() : AlgResIdentity(SELF_IDENT)
+    @eval psubtract(a::$T, b::$T)::AlgebraicResult{$T} = a == b ? AlgResNone() : AlgResIdentity(SELF_IDENT)
 end
 
 # psubtract for unsigned ints: saturating subtraction
@@ -705,7 +708,7 @@ Ports `AlgebraicResult::merge` (ring.rs line 216).
 Combines two independent `AlgebraicResult` values by resolving Identity
 arms through `self_idents`/`b_idents` callbacks, then calling `merge_f`.
 """
-function alg_merge(a, b, self_idents::F1, b_idents::F2, merge_f::F3) where {F1,F2,F3}
+function alg_merge(a, b, self_idents::F1, b_idents::F2, merge_f::F3) where {F1, F2, F3}
     if a isa AlgResNone
         if b isa AlgResNone
             return AlgResNone()
@@ -763,12 +766,13 @@ end
 # Ports ring.rs set_lattice! / set_dist_lattice! macros + impls.
 # =====================================================================
 
-function _set_lattice_update_ident!(result, inner_result, key, sv, ov,
-                                     is_ident::Ref{Bool}, is_cident::Ref{Bool})
+function _set_lattice_update_ident!(result, inner_result, key, sv, ov, is_ident::Ref{Bool}, is_cident::Ref{Bool})
     if inner_result isa AlgResNone
-        is_ident[] = false; is_cident[] = false
+        is_ident[] = false;
+        is_cident[] = false
     elseif inner_result isa AlgResElement
-        is_ident[] = false; is_cident[] = false
+        is_ident[] = false;
+        is_cident[] = false
         result[key] = inner_result.value
     else  # Identity
         mask = inner_result.mask
@@ -778,7 +782,10 @@ function _set_lattice_update_ident!(result, inner_result, key, sv, ov,
             is_ident[] = false
         end
         if mask & COUNTER_IDENT > 0
-            if mask & SELF_IDENT == 0; result[key] = ov; end
+            if mask & SELF_IDENT == 0
+                ;
+                result[key] = ov;
+            end
         else
             is_cident[] = false
         end
@@ -788,31 +795,36 @@ end
 function _set_lattice_integrate(result, is_ident, is_cident, self_len, other_len)
     isempty(result) && return AlgResNone()
     mask = 0x0
-    is_ident  && length(result) == self_len  && (mask |= SELF_IDENT)
+    is_ident && length(result) == self_len && (mask |= SELF_IDENT)
     is_cident && length(result) == other_len && (mask |= COUNTER_IDENT)
     mask > 0 ? AlgResIdentity(mask) : AlgResElement(result)
 end
 
-function pjoin(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
-    result = Dict{K,V}()
+function pjoin(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
+    result    = Dict{K, V}()
     is_ident  = Ref(length(a) >= length(b))
     is_cident = Ref(length(a) <= length(b))
     for (k, av) in a
         if haskey(b, k)
             _set_lattice_update_ident!(result, pjoin(av, b[k]), k, av, b[k], is_ident, is_cident)
         else
-            result[k] = av; is_cident[] = false
+            result[k] = av;
+            is_cident[] = false
         end
     end
     for (k, bv) in b
-        if !haskey(a, k); result[k] = bv; is_ident[] = false; end
+        if !haskey(a, k)
+            ;
+            result[k] = bv;
+            is_ident[] = false;
+        end
     end
     _set_lattice_integrate(result, is_ident[], is_cident[], length(a), length(b))
 end
 
-function pmeet(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
-    result = Dict{K,V}()
-    is_ident  = Ref(true)
+function pmeet(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
+    result = Dict{K, V}()
+    is_ident = Ref(true)
     is_cident = Ref(true)
     smaller, larger = length(a) < length(b) ? (a, b) : (b, a)
     switched = length(a) >= length(b)
@@ -825,13 +837,17 @@ function pmeet(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
             is_ident[] = false
         end
     end
-    switched && begin tmp = is_ident[]; is_ident[] = is_cident[]; is_cident[] = tmp; end
+    switched && begin
+        tmp = is_ident[];
+        is_ident[] = is_cident[];
+        is_cident[] = tmp;
+    end
     _set_lattice_integrate(result, is_ident[], is_cident[], length(a), length(b))
 end
 
-function psubtract(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
+function psubtract(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
     is_ident = Ref(true)
-    result   = copy(a)
+    result = copy(a)
     src, scan = length(a) > length(b) ? (b, true) : (a, false)
     for (k, other_v) in src
         self_v = scan ? get(a, k, nothing) : other_v
@@ -839,9 +855,11 @@ function psubtract(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
         self_v === nothing || other_v2 === nothing && continue
         r = psubtract(self_v, other_v2)
         if r isa AlgResElement
-            result[k] = r.value; is_ident[] = false
+            result[k] = r.value;
+            is_ident[] = false
         elseif r isa AlgResNone
-            delete!(result, k); is_ident[] = false
+            delete!(result, k);
+            is_ident[] = false
         end
     end
     isempty(result) ? AlgResNone() :
@@ -850,23 +868,31 @@ function psubtract(a::Dict{K,V}, b::Dict{K,V}) where {K,V}
 end
 
 # Set{K} lattice (values are Nothing)
-pjoin(a::Set{K}, b::Set{K}) where K = begin
-    d = Dict{K,Nothing}(k => nothing for k in a)
-    r = pjoin(d, Dict{K,Nothing}(k => nothing for k in b))
-    r isa AlgResNone ? AlgResNone() :
-    r isa AlgResIdentity ? AlgResIdentity(r.mask) :
-    AlgResElement(Set{K}(keys(r.value)))
+pjoin(a::Set{K}, b::Set{K}) where {K} = begin
+    d = Dict{K, Nothing}(k => nothing for k in a)
+    r = pjoin(d, Dict{K, Nothing}(k => nothing for k in b))
+    if r isa AlgResNone
+        AlgResNone()
+    elseif r isa AlgResIdentity
+        AlgResIdentity(r.mask)
+    else
+        AlgResElement(Set{K}(keys(r.value)))
+    end
 end
 
-pmeet(a::Set{K}, b::Set{K}) where K = begin
-    d = Dict{K,Nothing}(k => nothing for k in a)
-    r = pmeet(d, Dict{K,Nothing}(k => nothing for k in b))
-    r isa AlgResNone ? AlgResNone() :
-    r isa AlgResIdentity ? AlgResIdentity(r.mask) :
-    AlgResElement(Set{K}(keys(r.value)))
+pmeet(a::Set{K}, b::Set{K}) where {K} = begin
+    d = Dict{K, Nothing}(k => nothing for k in a)
+    r = pmeet(d, Dict{K, Nothing}(k => nothing for k in b))
+    if r isa AlgResNone
+        AlgResNone()
+    elseif r isa AlgResIdentity
+        AlgResIdentity(r.mask)
+    else
+        AlgResElement(Set{K}(keys(r.value)))
+    end
 end
 
-psubtract(a::Set{K}, b::Set{K}) where K = begin
+psubtract(a::Set{K}, b::Set{K}) where {K} = begin
     result = setdiff(a, b)
     isempty(result) ? AlgResNone() :
     result == a     ? AlgResIdentity(SELF_IDENT) :

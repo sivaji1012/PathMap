@@ -22,7 +22,7 @@ Used as the sentinel value for empty-child positions in the trie, replacing
 Singleton node type representing an empty trie position.
 Corresponds to upstream `EmptyNode` + its `TrieNode<V,A>` impl.
 """
-struct EmptyNode{V, A<:Allocator} <: AbstractTrieNode{V,A} end
+struct EmptyNode{V, A <: Allocator} <: AbstractTrieNode{V, A} end
 
 # =====================================================================
 # TrieNode interface implementation for EmptyNode
@@ -31,11 +31,9 @@ struct EmptyNode{V, A<:Allocator} <: AbstractTrieNode{V,A} end
 node_key_overlap(::EmptyNode, ::AbstractVector{UInt8}) = 0
 node_contains_partial_key(::EmptyNode, ::AbstractVector{UInt8}) = false
 
-node_get_child(::EmptyNode{V,A}, ::AbstractVector{UInt8}) where {V,A} =
-    nothing
+node_get_child(::EmptyNode{V, A}, ::AbstractVector{UInt8}) where {V, A} = nothing
 
-node_get_child_mut(::EmptyNode{V,A}, ::AbstractVector{UInt8}) where {V,A} =
-    nothing
+node_get_child_mut(::EmptyNode{V, A}, ::AbstractVector{UInt8}) where {V, A} = nothing
 
 function node_replace_child!(::EmptyNode, ::AbstractVector{UInt8}, ::TrieNodeODRc)
     error("EmptyNode::node_replace_child! — unreachable (no child to replace)")
@@ -45,13 +43,13 @@ node_get_payloads(::EmptyNode, ::Any, ::Any) = true   # vacuously exhaustive
 
 node_contains_val(::EmptyNode, ::AbstractVector{UInt8}) = false
 
-node_get_val(::EmptyNode{V}, ::AbstractVector{UInt8}) where V = nothing
+node_get_val(::EmptyNode{V}, ::AbstractVector{UInt8}) where {V} = nothing
 
-function node_get_val_mut(::EmptyNode{V}, ::AbstractVector{UInt8}) where V
+function node_get_val_mut(::EmptyNode{V}, ::AbstractVector{UInt8}) where {V}
     nothing
 end
 
-function node_set_val!(::EmptyNode{V,A}, ::AbstractVector{UInt8}, ::V) where {V,A}
+function node_set_val!(::EmptyNode{V, A}, ::AbstractVector{UInt8}, ::V) where {V, A}
     error("EmptyNode::node_set_val! — unreachable (should be headed off upstream)")
 end
 
@@ -73,8 +71,7 @@ end
 
 node_remove_all_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::Bool) = false
 
-node_remove_unmasked_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool) =
-    nothing
+node_remove_unmasked_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool) = nothing
 
 node_is_empty(::EmptyNode) = true
 
@@ -82,19 +79,19 @@ new_iter_token(::EmptyNode) = UInt128(0)
 
 iter_token_for_path(::EmptyNode, ::AbstractVector{UInt8}) = UInt128(0)
 
-function next_items(::EmptyNode{V,A}, ::UInt128) where {V,A}
+function next_items(::EmptyNode{V, A}, ::UInt128) where {V, A}
     # (next_token, path, child_node, value)
     (NODE_ITER_FINISHED, UInt8[], nothing, nothing)
 end
 
-node_val_count(::EmptyNode, ::Dict{UInt64,Int}) = 0
+node_val_count(::EmptyNode, ::Dict{UInt64, Int}) = 0
 node_goat_val_count(::EmptyNode) = 0
 
-function node_child_iter_start(::EmptyNode{V,A}) where {V,A}
+function node_child_iter_start(::EmptyNode{V, A}) where {V, A}
     (UInt64(0), nothing)
 end
 
-function node_child_iter_next(::EmptyNode{V,A}, ::UInt64) where {V,A}
+function node_child_iter_next(::EmptyNode{V, A}, ::UInt64) where {V, A}
     (UInt64(0), nothing)
 end
 
@@ -118,8 +115,8 @@ function get_sibling_of_child(::EmptyNode, ::AbstractVector{UInt8}, ::Bool)
     (nothing, nothing)
 end
 
-function get_node_at_key(e::EmptyNode{V,A}, ::AbstractVector{UInt8}) where {V,A}
-    ANRNone{V,A}()
+function get_node_at_key(e::EmptyNode{V, A}, ::AbstractVector{UInt8}) where {V, A}
+    ANRNone{V, A}()
 end
 
 function take_node_at_key!(::EmptyNode, ::AbstractVector{UInt8}, ::Bool)
@@ -137,11 +134,11 @@ end
 #   psubtract_dyn: always None
 #   prestrict_dyn: always None
 
-function pjoin_dyn(e::EmptyNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
+function pjoin_dyn(e::EmptyNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
     node_is_empty(other) ? AlgResNone() : AlgResIdentity(COUNTER_IDENT)
 end
 
-function join_into_dyn!(e::EmptyNode{V,A}, other::TrieNodeODRc{V,A}) where {V,A}
+function join_into_dyn!(e::EmptyNode{V, A}, other::TrieNodeODRc{V, A}) where {V, A}
     if is_empty_node(other)
         (ALG_STATUS_NONE, nothing)      # Ok(())
     else
@@ -153,17 +150,15 @@ function drop_head_dyn!(::EmptyNode, ::Int)
     nothing
 end
 
-function pmeet_dyn(::EmptyNode{V,A}, other::AbstractTrieNode{V,A}) where {V,A}
-    node_is_empty(other) ?
-        AlgResIdentity(SELF_IDENT | COUNTER_IDENT) :
-        AlgResIdentity(SELF_IDENT)
+function pmeet_dyn(::EmptyNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
+    node_is_empty(other) ? AlgResIdentity(SELF_IDENT | COUNTER_IDENT) : AlgResIdentity(SELF_IDENT)
 end
 
-function psubtract_dyn(::EmptyNode{V,A}, ::AbstractTrieNode{V,A}) where {V,A}
+function psubtract_dyn(::EmptyNode{V, A}, ::AbstractTrieNode{V, A}) where {V, A}
     AlgResNone()
 end
 
-function prestrict_dyn(::EmptyNode{V,A}, ::AbstractTrieNode{V,A}) where {V,A}
+function prestrict_dyn(::EmptyNode{V, A}, ::AbstractTrieNode{V, A}) where {V, A}
     AlgResNone()
 end
 

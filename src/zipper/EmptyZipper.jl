@@ -7,8 +7,8 @@ buffer so absolute-path methods work correctly.
 """
 
 mutable struct EmptyZipper
-    path           ::Vector{UInt8}
-    path_start_idx ::Int
+    path           :: Vector{UInt8}
+    path_start_idx :: Int
 end
 
 """
@@ -34,14 +34,14 @@ end
 # =====================================================================
 
 ez_path_exists(::EmptyZipper) = false
-ez_is_val(::EmptyZipper)      = false
+ez_is_val(::EmptyZipper) = false
 ez_child_count(::EmptyZipper) = 0
-ez_child_mask(::EmptyZipper)  = ByteMask()
-ez_val(::EmptyZipper)         = nothing
-ez_at_root(z::EmptyZipper)    = length(z.path) == z.path_start_idx
-ez_val_count(::EmptyZipper)   = 0
-ez_path(z::EmptyZipper)       = view(z.path, z.path_start_idx+1:length(z.path))
-ez_origin_path(z::EmptyZipper)= z.path
+ez_child_mask(::EmptyZipper) = ByteMask()
+ez_val(::EmptyZipper) = nothing
+ez_at_root(z::EmptyZipper) = length(z.path) == z.path_start_idx
+ez_val_count(::EmptyZipper) = 0
+ez_path(z::EmptyZipper) = view(z.path, (z.path_start_idx + 1):length(z.path))
+ez_origin_path(z::EmptyZipper) = z.path
 ez_root_prefix_path(z::EmptyZipper) = view(z.path, 1:z.path_start_idx)
 
 # =====================================================================
@@ -64,7 +64,7 @@ ez_descend_indexed_byte!(::EmptyZipper, ::Int) = false
 ez_descend_first_byte!(::EmptyZipper)          = false
 ez_descend_until!(::EmptyZipper)               = false
 
-function ez_ascend!(z::EmptyZipper, steps::Int=1)
+function ez_ascend!(z::EmptyZipper, steps::Int = 1)
     avail = length(z.path) - z.path_start_idx
     if steps > avail
         ez_reset!(z)
