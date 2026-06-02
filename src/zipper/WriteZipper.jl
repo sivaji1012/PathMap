@@ -1338,6 +1338,11 @@ function wz_join_into_take!(z::WriteZipperCore{V, A}, src_anr::AbstractNodeRef{V
 
     self_rc = wz_take_focus!(z, false)
     if self_rc !== nothing
+        # COW: join_into_dyn! mutates self in place on the byte-node path
+        # (_bn_join_into!). If self was grafted/shared (refcount>1, now reachable via
+        # shallow clone), make it unique first so the source is not corrupted —
+        # mirrors Rust make_mut() before the in-place merge.
+        make_unique!(self_rc)
         result = join_into_dyn!(self_rc.node, src_rc)
         if result isa Tuple
             status, ok_or_replacement = result

@@ -573,4 +573,47 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test get_val_at(m1, b"Xab") == 1     # source intact — the COW property
         @test get_val_at(m1, b"Xcd") == 2
     end
+
+    # ── Gate B (close-out step 2): shallow clone_self restores STRUCTURAL SHARING.
+    #    clone_self used to deepcopy whole subtrees (sharing defeated, PathMap's
+    #    reason for existing). After the shallow-clone change a cloned node SHARES
+    #    its children with the original (same node identity). This is the gate that
+    #    proves deepcopy is actually gone — integration tests cannot measure sharing.
+    @testset "Gate B — clone_self shares children (structural sharing restored)" begin
+        m = PM{Int}()
+        for k in (b"aXX", b"aYY", b"bXX", b"bYY")   # 2-level trie → root has child nodes
+            set_val_at!(m, k, 1)
+        end
+        root = m.root
+        _, child       = PathMap.node_child_iter_start(PathMap.as_tagged(root))
+        cl             = clone_self(PathMap.as_tagged(root))   # shallow clone of the node
+        _, child_clone = PathMap.node_child_iter_start(PathMap.as_tagged(cl))
+        @test child !== nothing && child_clone !== nothing
+        @test PathMap.shared_node_id(child) == PathMap.shared_node_id(child_clone)  # SHARED
+    end
+
+    # ── Gate A (close-out step 3): with sharing restored, drop_head_dyn!'s RECURSION
+    #    into a shared child must not corrupt the source. Construction forces the
+    #    LineListNode recursion (consume the parent key "abc" then recurse 1 byte into
+    #    the shared {XX,YY} child). FAILED on shallow-clone-without-discipline (source
+    #    keys became `nothing`); passes once make_unique! guards the recursion.
+    @testset "Gate A — drop_head recursion on shared child preserves source" begin
+        m1 = PM{Int}()
+        set_val_at!(m1, b"abcXX", 1)
+        set_val_at!(m1, b"abcYY", 2)
+
+        m2 = PM{Int}()
+        wz = write_zipper(m2)
+        wz_descend_to!(wz, b"P:")
+        wz_graft_map!(wz, m1)                 # shares m1's nodes (incl. the {XX,YY} child)
+
+        wz2 = write_zipper(m2)
+        wz_descend_to!(wz2, b"P:")
+        wz_join_k_path_into!(wz2, 4)          # consume "abc" + recurse 1 into shared child
+
+        @test get_val_at(m2, b"P:X") == 1     # m2 reflects the drop
+        @test get_val_at(m2, b"P:Y") == 2
+        @test get_val_at(m1, b"abcXX") == 1   # source intact through the recursion
+        @test get_val_at(m1, b"abcYY") == 2
+    end
 end

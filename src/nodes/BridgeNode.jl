@@ -318,7 +318,9 @@ function clone_self(n::BridgeNode{V, A}) where {V, A}
 end
 
 function _clone_val_or_child(vc::ValOrChild{V, A}, is_child::Bool) where {V, A}
-    is_child ? ValOrChild(into_child(vc)) : ValOrChild(Ref{V}(into_val(vc)))
+    # Child: SHARE via copy() (bumps the child refcount) — was sharing the raw rc
+    # wrapper with no count bump (undercount → unsafe once make_unique! relies on it).
+    is_child ? ValOrChild(copy(into_child(vc))) : ValOrChild(Ref{V}(into_val(vc)))
 end
 
 node_tag(::BridgeNode) = BRIDGE_NODE_TAG

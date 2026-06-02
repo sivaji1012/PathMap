@@ -1437,11 +1437,15 @@ function pjoin_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) whe
     end
 end
 
+# Shallow clone: copy the bitmask (a value), and SHARE child subtries per-entry via
+# _cf_copy (copy() of cf.rec bumps the child refcount), instead of deepcopy(values)
+# which deep-copied whole subtrees and defeated structural sharing (audit 2026-06-02,
+# close-out step 2). Kept sound by the COW make_unique! discipline before mutation.
 function deepcopy_bn(n::DenseByteNode{V, A}) where {V, A}
-    DenseByteNode{V, A}(deepcopy(n.mask), deepcopy(n.values), n.alloc)
+    DenseByteNode{V, A}(copy(n.mask), CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
 end
 function deepcopy_bn(n::CellByteNode{V, A}) where {V, A}
-    CellByteNode{V, A}(deepcopy(n.mask), deepcopy(n.values), n.alloc)
+    CellByteNode{V, A}(copy(n.mask), CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
 end
 
 function join_into_dyn!(n::AbstractByteNode{V, A}, other::TrieNodeODRc{V, A}) where {V, A}
@@ -1534,10 +1538,10 @@ function prestrict_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A})
 end
 
 function clone_self(n::DenseByteNode{V, A}) where {V, A}
-    TrieNodeODRc(DenseByteNode{V, A}(deepcopy(n.mask), deepcopy(n.values), n.alloc), n.alloc)
+    TrieNodeODRc(deepcopy_bn(n), n.alloc)   # deepcopy_bn is now a shallow (sharing) clone
 end
 function clone_self(n::CellByteNode{V, A}) where {V, A}
-    TrieNodeODRc(CellByteNode{V, A}(deepcopy(n.mask), deepcopy(n.values), n.alloc), n.alloc)
+    TrieNodeODRc(deepcopy_bn(n), n.alloc)
 end
 
 # =====================================================================

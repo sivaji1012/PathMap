@@ -13,9 +13,35 @@ verification gate.
 | 0 | Test net: COW refcount-primitive **rewrite guard** | ✅ `8205292` (suite 113/113) |
 | 1 | 3 operator-precedence fixes (`A \|\| B && return` misparse) + regressions | ✅ `084fd0c` |
 | 3a | **COW discipline — `make_unique!` before `drop_head_dyn!` in `wz_join_k_path_into!`** (decoupled live-bug fix) + Gate A regression | ✅ `fac3d84` (suite 118/118) |
-| 2+3b | **Node-keyed refcount + shallow `clone_self`** (+ remaining discipline: `wz_join_into_take!`, `drop_head` swap-into-fresh) — coupled atomic change | ⏳ deferred — see below |
+| 2 | **Shallow `clone_self`** (LineListNode slots, DenseByteNode/CellByteNode via `_cf_copy`, BridgeNode child via `copy()`) — structural sharing restored | ✅ Option B (suite 124/124, Gate B) |
+| 3b | **COW discipline** — `make_unique!` before each `drop_head_dyn!` RECURSION (LineListNode) + before the in-place merge in `wz_join_into_take!` | ✅ Option B (Gate A + MORK 1715/1715) |
+| 2-A | **Node-keyed `@atomic refcnt`** rewrite (thread-safety + Rust `slim_ptrs` fidelity) — Option A hardening | ⏳ deferred follow-up — see "Option A/B split" below |
 | 4 | Arena allocator (Bumper.jl) in-or-out decision | ⏳ |
 | 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ⏳ |
+
+## Option A / B split (decided 2026-06-02, "B now, A later")
+
+The per-wrapper `Ref` refcount turned out to be **already coherent** for shallow
+clone: every secondary node reference arises through `copy()` (e.g.
+`wz_graft_map!` does `copy(map.root)`), and `copy` shares the *same* `Ref` box, so
+the count tracks node sharing today. So node-keyed refcount is **not required to
+enable** shallow clone (the audit's premise was slightly off) — it buys
+thread-safety (atomic field vs racy `Ref{Int} += 1`) and faithful mirroring of
+Rust `slim_ptrs refcnt: AtomicU32`.
+
+- **Option B (landed):** keep the coherent per-wrapper `Ref`; flip `clone_self`
+  shallow + add the `make_unique!` discipline at the `drop_head` recursion and
+  `wz_join_into_take!`. Captures the real payoff (structural sharing) at small
+  blast radius. Single-thread-correct. `drop_head_dyn!` for DenseByteNode was
+  ALREADY discipline-correct (copy + `make_unique!` + fresh node); only
+  LineListNode's two recursions and `wz_join_into_take!` needed the guard.
+- **Option A (deferred follow-up, "2-A"):** add `@atomic refcnt::UInt32` to the
+  four mutable node structs (LineListNode, DenseByteNode, CellByteNode,
+  BridgeNode), strip `_refcount` from `TrieNodeODRc`, rewrite
+  `copy`/`make_unique!`/`refcount` node-keyed. Immutable nodes (TinyRefNode,
+  EmptyNode) need no field — they upgrade-on-write, so `make_unique!` is a no-op.
+  `refcount()` has only two call sites (`make_unique!`, `WriteZipper.jl:139`), so
+  the rewrite surface is small. Do it for the concurrent-MORK story.
 
 ## ⚠️ CORRECTION: the COW bug was LIVE, not latent — and discipline DECOUPLES
 

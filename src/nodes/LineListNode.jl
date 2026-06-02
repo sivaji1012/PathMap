@@ -1705,8 +1705,11 @@ function drop_head_dyn!(self::LineListNode{V, A}, byte_cnt::Int) where {V, A}
             @assert is_child_0(self)
             child_rc = into_child(take_slot0_payload!(self))
             if remaining > 0
-                child_mut = as_tagged(child_rc)
-                return drop_head_dyn!(child_mut, remaining)
+                # COW: the child may be SHARED (shallow clone). drop_head_dyn! mutates
+                # it in place, so make it unique first — mirrors Rust
+                # `child.make_mut().drop_head_dyn(remaining)` (line_list_node.rs:2562).
+                make_unique!(child_rc)
+                return drop_head_dyn!(as_tagged(child_rc), remaining)
             else
                 return child_rc
             end
@@ -1762,6 +1765,8 @@ function drop_head_dyn!(self::LineListNode{V, A}, byte_cnt::Int) where {V, A}
     if chop_bytes == byte_cnt
         return child_rc
     else
+        # COW: same as the single-slot recursion — the merged child may be shared.
+        make_unique!(child_rc)
         return drop_head_dyn!(as_tagged(child_rc), byte_cnt - chop_bytes)
     end
 end
@@ -1844,14 +1849,24 @@ function prestrict_dyn(self::LineListNode{V, A}, other::AbstractTrieNode{V, A}) 
     end
 end
 
+# Shallow clone of one slot payload: SHARE a child subtrie via copy() (bumps the
+# child's refcount — structural sharing, PathMap's reason for existing), copy a
+# leaf value. Replaces the old deepcopy(slot), which deep-copied whole subtrees
+# and defeated sharing (audit 2026-06-02, close-out step 2). Sharing is kept sound
+# by the COW make_unique! discipline before any in-place mutation of a shared node.
+@inline function _shallow_clone_slot(voc::ValOrChild{V, A}) where {V, A}
+    is_child(voc) ? ValOrChild(copy(into_child(voc))) :
+                    ValOrChild{V, A}(0x0, deepcopy(into_val(voc)), nothing)
+end
+
 function clone_self(n::LineListNode{V, A}) where {V, A}
     new_n = LineListNode{V, A}(n.alloc)
     if is_used_0(n)
-        new_n.slot0 = deepcopy(n.slot0)
+        new_n.slot0 = _shallow_clone_slot(n.slot0)
         new_n.key0  = copy(n.key0)
     end
     if is_used_1(n)
-        new_n.slot1 = deepcopy(n.slot1)
+        new_n.slot1 = _shallow_clone_slot(n.slot1)
         new_n.key1  = copy(n.key1)
     end
     TrieNodeODRc(new_n, n.alloc)
