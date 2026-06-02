@@ -12,9 +12,33 @@ verification gate.
 | — | JuliaFormatter pass (whitespace/reflow only) | ✅ `89fa57f` |
 | 0 | Test net: COW refcount-primitive **rewrite guard** | ✅ `8205292` (suite 113/113) |
 | 1 | 3 operator-precedence fixes (`A \|\| B && return` misparse) + regressions | ✅ `084fd0c` |
-| 2+3 | **Node-keyed refcount + shallow `clone_self` + COW discipline** (ONE atomic change) | ⏳ next — see below |
+| 3a | **COW discipline — `make_unique!` before `drop_head_dyn!` in `wz_join_k_path_into!`** (decoupled live-bug fix) + Gate A regression | ✅ `fac3d84` (suite 118/118) |
+| 2+3b | **Node-keyed refcount + shallow `clone_self`** (+ remaining discipline: `wz_join_into_take!`, `drop_head` swap-into-fresh) — coupled atomic change | ⏳ deferred — see below |
 | 4 | Arena allocator (Bumper.jl) in-or-out decision | ⏳ |
 | 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ⏳ |
+
+## ⚠️ CORRECTION: the COW bug was LIVE, not latent — and discipline DECOUPLES
+
+An empirical probe (graft-share `m1` into `m2`, then `wz_join_k_path_into!` on `m2`)
+showed `m1`'s values **silently corrupted** — a **LIVE** bug, reachable today via
+MorkL's `OP_DROP_HEAD`. The audit's "masked by deepcopy" assessment was **wrong for
+this path**: `wz_join_k_path_into!` bypasses `make_unique!` *and* `clone_self`
+entirely (it calls `drop_head_dyn!` directly), so the deepcopy never runs → no
+masking → live corruption.
+
+Key consequence for the coupling: the implication is **one-directional**.
+*Shallow-clone-without-discipline* is more broken (the principle below holds). But
+*discipline-without-shallow-clone* is **safe AND fixes a live bug** — `make_unique!`
+uses the current refcount + deepcopy clone (private copy → mutate copy → source
+intact). So the `wz_join_k_path_into!` guard landed NOW (`fac3d84`), decoupled from
+the deferred core. Subtlety that made the obvious fix wrong: the focus node is reached
+via `get_node_at_key` and is **off** `focus_stack`, so the stack-only
+`_wz_ensure_write_unique!` misses it — the fix `make_unique!`s the **borrowed focus
+rc** (`borrow(focus_anr)`), the actual Rust `make_mut()` target.
+
+STILL TODO in the coupled change: `wz_join_into_take!` (probe it first — audit says
+"largely masked for list-node case", so confirm before claiming), and the
+`drop_head_dyn!` swap-into-fresh Rust-mirror (robustness for the shallow-clone world).
 
 ## The coupling principle (read before touching step 2)
 
