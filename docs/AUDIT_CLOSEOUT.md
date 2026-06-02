@@ -36,9 +36,14 @@ via `get_node_at_key` and is **off** `focus_stack`, so the stack-only
 `_wz_ensure_write_unique!` misses it — the fix `make_unique!`s the **borrowed focus
 rc** (`borrow(focus_anr)`), the actual Rust `make_mut()` target.
 
-STILL TODO in the coupled change: `wz_join_into_take!` (probe it first — audit says
-"largely masked for list-node case", so confirm before claiming), and the
-`drop_head_dyn!` swap-into-fresh Rust-mirror (robustness for the shallow-clone world).
+`wz_join_into_take!` — PROBED (graft-share + join_into_take): source stays intact,
+**NOT a current bug** (join_into_dyn! on a LineListNode builds a new node rather than
+mutating self in place — the audit's "largely masked" guess confirmed). Adding
+`make_unique!` there is a robustness item for the shallow-clone world, NOT a live fix.
+
+STILL TODO in the coupled change: node-keyed refcount + shallow `clone_self` + the
+`drop_head_dyn!` swap-into-fresh Rust-mirror + the `wz_join_into_take!` robustness
+guard. The live corruption (`wz_join_k_path_into!`) is already fixed (`fac3d84`).
 
 ## The coupling principle (read before touching step 2)
 
