@@ -830,6 +830,15 @@ function wz_join_k_path_into!(z::WriteZipperCore{V, A}, byte_cnt::Int, prune::Bo
         prune && _wz_prune_path_internal!(z)
         return false
     end
+    # COW: drop_head_dyn! mutates the focus subtrie IN PLACE. The focus node is
+    # reached via get_node_at_key and is NOT on focus_stack, so the stack-only
+    # _wz_ensure_write_unique! does not cover it. If that borrowed node is SHARED
+    # (e.g. grafted in via copy(), refcount>1), make it unique first — mirroring
+    # Rust `self_node.make_mut().drop_head_dyn(...)` (write_zipper.rs:1620).
+    # Without this, dropping the head of a shared subtrie corrupts the SOURCE map
+    # (live bug, reachable via MorkL OP_DROP_HEAD on a shared space).
+    focus_rc = borrow(focus_anr)
+    focus_rc !== nothing && make_unique!(focus_rc)
     self_node = as_tagged(focus_anr)
     new_node  = drop_head_dyn!(self_node, byte_cnt)
     _wz_graft_internal!(z, new_node)

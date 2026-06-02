@@ -548,4 +548,29 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
             @test r isa PathMap.AlgResIdentity       # disjoint subtraction = self unchanged
         end
     end
+
+    # ── COW property: join_k_path (MorkL OP_DROP_HEAD) on a SHARED subtrie must NOT
+    #    corrupt the source map. This was a LIVE bug — drop_head_dyn! mutated the
+    #    shared focus node in place (reached via get_node_at_key, off the focus
+    #    stack), silently corrupting the source. Fixed by make_unique! on the
+    #    borrowed focus rc before the in-place mutation.
+    @testset "COW property: join_k_path on shared subtrie preserves source" begin
+        m1 = PM{Int}()
+        set_val_at!(m1, b"Xab", 1)
+        set_val_at!(m1, b"Xcd", 2)
+
+        m2 = PM{Int}()
+        wz = write_zipper(m2)
+        wz_descend_to!(wz, b"P:")
+        wz_graft_map!(wz, m1)                 # shares m1's nodes under "P:" (refcount>1)
+
+        wz2 = write_zipper(m2)
+        wz_descend_to!(wz2, b"P:")
+        @test wz_join_k_path_into!(wz2, 1)    # drop first byte below "P:": Xab→ab, Xcd→cd
+
+        @test get_val_at(m2, b"P:ab") == 1    # m2 reflects the drop
+        @test get_val_at(m2, b"P:cd") == 2
+        @test get_val_at(m1, b"Xab") == 1     # source intact — the COW property
+        @test get_val_at(m1, b"Xcd") == 2
+    end
 end
