@@ -491,4 +491,39 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # And the spine itself is gone (val_count under "deep:" == 0).
         @test wz_val_count(write_zipper_at_path(m, b"deep:")) == 0
     end
+
+    # ── COW refcount primitive — pins the exact contract that the node-keyed
+    #    refcount rewrite (PathMap audit 2026-06-02, close-out step 2) must
+    #    preserve. Green on the current per-wrapper-Ref scheme AND must stay green
+    #    after the rewrite, so it is the rewrite's fail-safe. copy() bumps a SHARED
+    #    count; make_unique! on a shared wrapper clones + detaches and leaves the
+    #    survivor's count correct; make_unique! on a sole owner is a no-op.
+    @testset "COW refcount semantics (rewrite guard)" begin
+        m = PM{Int}()
+        set_val_at!(m, b"alpha", 1)
+        set_val_at!(m, b"beta", 2)
+        root = m.root
+
+        @test !is_empty_node(root)
+        @test refcount(root) == 1
+
+        c = copy(root)
+        @test refcount(root) == 2        # copy bumps the shared count
+        @test refcount(c) == 2
+        @test ptr_eq(root, c)            # both wrappers point at the same node
+
+        make_unique!(c)                  # c is shared (rc>1) → clone + detach
+        @test !ptr_eq(root, c)           # c now owns a private clone
+        @test refcount(root) == 1        # survivor's count decremented correctly
+        @test refcount(c) == 1
+
+        node_before = c.node
+        make_unique!(c)                  # sole owner → no-op, no clone
+        @test c.node === node_before
+        @test refcount(c) == 1
+
+        # The original map is untouched by the copy/uniquify dance on its root.
+        @test get_val_at(m, b"alpha") == 1
+        @test get_val_at(m, b"beta") == 2
+    end
 end
