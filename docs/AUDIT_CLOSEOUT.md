@@ -1,0 +1,91 @@
+# PathMap audit close-out
+
+Working tracker for the close-out of the 2026-06-02 deep audit (Rust→Julia
+porting faithfulness, idiomatic Julia, Julia 1.12.6). Fix-and-harden in place; no
+repo migration until every package is audited + fixed. Each step lands against a
+verification gate.
+
+## Status
+
+| Step | What | State |
+|------|------|-------|
+| — | JuliaFormatter pass (whitespace/reflow only) | ✅ `89fa57f` |
+| 0 | Test net: COW refcount-primitive **rewrite guard** | ✅ `8205292` (suite 113/113) |
+| 1 | 3 operator-precedence fixes (`A \|\| B && return` misparse) + regressions | ✅ `084fd0c` |
+| 2+3 | **Node-keyed refcount + shallow `clone_self` + COW discipline** (ONE atomic change) | ⏳ next — see below |
+| 4 | Arena allocator (Bumper.jl) in-or-out decision | ⏳ |
+| 5 | Doc-comment the integer/bool lattices as a deliberate divergence | ⏳ |
+
+## The coupling principle (read before touching step 2)
+
+`clone_self`'s `deepcopy` (`LineListNode.jl`, `DenseByteNode.jl`) is **load-bearing
+as a safety mechanism**, not just a perf wart. It deep-copies whole subtrees, so
+almost nothing is structurally shared — which *masks* the COW discipline gaps
+(missing `make_unique!`). The intermediate state "shallow clone + missing
+`make_unique!`" is **strictly more broken** than today: it replaces *correct-but-slow*
+with *fast-and-corrupting*. **There is no valid commit boundary between flipping the
+clone and landing the discipline fixes.** Steps 2 and 3 are one atomic correctness
+unit. Do not split them.
+
+(The refcount mechanics themselves are NOT a live corruption bug today — the current
+per-wrapper `Ref` scheme errs toward overcount → over-clone → safe-but-slow. The
+node-keyed refcount is the *enabler* of the shallow clone, which is the real payoff.)
+
+## Step 2+3 — the coupled change (5 parts)
+
+1. **Node-keyed refcount.** Move `refcnt` onto each node type (`@atomic refcnt::UInt32`,
+   mirroring Rust `slim_ptrs` `refcnt: AtomicU32` as the node's first field). Strip
+   `_refcount::Base.RefValue{Int}` from `TrieNodeODRc` (`TrieNode.jl:367`). Rewrite
+   `copy` / `make_unique!` / `refcount` to read **through the node**. Every
+   `clone_self`/constructor inits `refcnt = 1`. GC means no Drop-side decrement and
+   no Rust `MAX_REFCOUNT` saturation needed.
+2. **Shallow `clone_self`.** Share children via `copy` (Arc-bump), NOT `deepcopy`
+   (`LineListNode.jl:1850`, `DenseByteNode.jl:1537/1540`, `deepcopy_bn:1440`). This
+   restores structural sharing — PathMap's reason for existing.
+3. **COW discipline (two distinct sub-fixes).**
+   a. Add `make_unique!` on the focus rc BEFORE the in-place mutation in
+      `wz_join_k_path_into!` (`WriteZipper.jl:834`) and `wz_join_into_take!` (`:1332`)
+      — Rust calls `make_mut()` at exactly those sites.
+   b. Fix `drop_head_dyn!` (`LineListNode.jl:1702/1736`) to **swap contents into a
+      fresh node** before wrapping, mirroring Rust `drop_head_dyn`
+      (`line_list_node.rs:2525-2563`, `core::mem::swap` then `new_in`) — NOT a
+      Julia-local approach. `drop_head` is subtle; DIFF against the Rust mechanism
+      before accepting. Same for the DenseByteNode `drop_head_dyn!` path.
+4. **COW property test** (write FIRST, adversarially — see Gate A).
+5. **Run MORK** against the changed PathMap (Gate C, blocking).
+
+## Acceptance gates (definition-of-done — write the tests BEFORE the implementation)
+
+These, not "hot context", are what make this change safe. Each must be written
+deliberately.
+
+- **Gate A — COW property test (containment proof).** Build a map; graft/`copy` a
+  non-trivial subtrie into a second map so they genuinely SHARE nodes; take a write
+  zipper on one and run the discipline-gap ops (`drop_head` via the public path,
+  `wz_join_k_path_into!`, `wz_join_into_take!`); assert the OTHER map is byte-identical
+  to a pre-op snapshot. **Must FAIL against parts 1+2 alone (shallow clone, no
+  discipline) and PASS only after part 3.** That fail-then-pass is the literal proof
+  the un-masking is contained. If it passes against 1+2, the test is too weak — fix
+  the test first.
+- **Gate B — structural-sharing assertion (proves #1 FIXED, not just not-broken).**
+  After a shallow `clone_self` of a node with children, assert a child node is
+  `ptr_eq` / `shared_node_id`-identical between original and clone. The integration
+  tests CANNOT give you this — they don't measure sharing. This is the gate that
+  proves `deepcopy` is actually gone and sharing is real.
+- **Gate C — MORK integration run (BLOCKING, not post-hoc).** Run MORK's full suite
+  against the modified PathMap in the integrated workspace. PathMap is the substrate
+  MORK rides on; a subtle COW bug surfaces three layers up in `.metta` and is
+  ruinously expensive to diagnose from there. Green MORK is part of done.
+
+- **Guard (step 0):** the existing "COW refcount semantics (rewrite guard)" testset
+  (`test/runtests.jl`) must stay green through the refcount rewrite.
+
+## References
+
+- Deep-audit findings + the corrected bug-#7 analysis: session memory
+  `project_pathmap_cow_audit_2026-06-02` and `project_packages_migration_to_cognitivesubstrates`.
+- Upstream Rust: `~/JuliaAGI/dev-zone/PathMap/src/` (`trie_node.rs`, `line_list_node.rs`,
+  `dense_byte_node.rs`, `write_zipper.rs`, `ring.rs`).
+- MORK-impact on the integer/bool lattice divergence: DONE — MORK uses `PathMap{UnitVal}`
+  exclusively for algebraic ops; `UnitVal` lattice is bit-exact to Rust `Lattice for ()`.
+  Int/bool divergence is off-path (latent); step 5 = document it, not a blocker.
