@@ -688,7 +688,7 @@ function act_descend_indexed_byte!(z::ACTZipper, idx::Int)
         frame = z.stack[end]
         lpath = act_get_line(z.tree, cur.path)
         rest  = view(lpath, (frame.node_depth + 1):length(lpath))
-        idx != 0 || isempty(rest) && return false
+        (idx != 0 || isempty(rest)) && return false
         push!(z.path, rest[1])
         if length(rest) == 1 && cur.child !== nothing
             child_id = cur.child

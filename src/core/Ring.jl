@@ -852,7 +852,7 @@ function psubtract(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
     for (k, other_v) in src
         self_v = scan ? get(a, k, nothing) : other_v
         other_v2 = scan ? other_v : get(b, k, nothing)
-        self_v === nothing || other_v2 === nothing && continue
+        (self_v === nothing || other_v2 === nothing) && continue
         r = psubtract(self_v, other_v2)
         if r isa AlgResElement
             result[k] = r.value;

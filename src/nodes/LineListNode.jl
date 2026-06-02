@@ -479,7 +479,7 @@ Returns true if `key1` should go in slot0 (i.e. `key1 < key0` or same first byte
 but `key1` is shorter), preserving the invariant that slot0 key ≤ slot1 key.
 """
 function should_swap_keys(key0::AbstractVector{UInt8}, key1::AbstractVector{UInt8})::Bool
-    isempty(key0) || isempty(key1) && return false
+    (isempty(key0) || isempty(key1)) && return false
     key0[1] > key1[1] && return true
     key0[1] == key1[1] && length(key0) > length(key1) && return true
     false

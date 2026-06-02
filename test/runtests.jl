@@ -526,4 +526,26 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test get_val_at(m, b"alpha") == 1
         @test get_val_at(m, b"beta") == 2
     end
+
+    # ── Operator-precedence fixes (PathMap audit 2026-06-02, close-out step 1).
+    #    `A || B && return/continue` parses as `A || (B && …)` in Julia (&& binds
+    #    tighter than ||) — three sites had this transpilation defect. Each test
+    #    THREW pre-fix on the empty/disjoint branch the misparse let fall through.
+    @testset "precedence-bug regressions" begin
+        # should_swap_keys: empty key0 fell through to key0[1] → BoundsError pre-fix.
+        @test PathMap.should_swap_keys(UInt8[], UInt8[0x41]) == false
+        @test PathMap.should_swap_keys(UInt8[0x41], UInt8[]) == false
+        @test PathMap.should_swap_keys(UInt8[0x42], UInt8[0x41]) == true   # higher byte → swap
+        @test PathMap.should_swap_keys(UInt8[0x41], UInt8[0x42]) == false
+        @test PathMap.should_swap_keys(UInt8[0x41, 0x41], UInt8[0x41]) == true  # same byte, longer → swap
+
+        # Dict psubtract: a key only in the SMALLER operand made self_v===nothing
+        # fall through to psubtract(nothing, …) → MethodError pre-fix. a−b with a
+        # disjoint, larger `a` is just `a` (identity on self).
+        let a = Dict("x" => 1, "y" => 1, "z" => 1), b = Dict("w" => 1)
+            r = PathMap.psubtract(a, b)
+            @test r !== nothing                      # did not throw; returned a result
+            @test r isa PathMap.AlgResIdentity       # disjoint subtraction = self unchanged
+        end
+    end
 end
