@@ -1445,11 +1445,15 @@ end
 # _cf_copy (copy() of cf.rec bumps the child refcount), instead of deepcopy(values)
 # which deep-copied whole subtrees and defeated structural sharing (audit 2026-06-02,
 # close-out step 2). Kept sound by the COW make_unique! discipline before mutation.
+# `n.mask` is an immutable ByteMask (wraps Bits4 = NTuple{4,UInt64}), so it is shared
+# by value — no copy needed (and `copy(::ByteMask)` is not defined; calling it threw a
+# MethodError that silently emptied any cloned byte node — caught by MorkServer's
+# metta_thread/copy integration, missed by the unit COW tests which stay in list nodes).
 function deepcopy_bn(n::DenseByteNode{V, A}) where {V, A}
-    DenseByteNode{V, A}(copy(n.mask), CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
+    DenseByteNode{V, A}(n.mask, CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
 end
 function deepcopy_bn(n::CellByteNode{V, A}) where {V, A}
-    CellByteNode{V, A}(copy(n.mask), CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
+    CellByteNode{V, A}(n.mask, CoFreeEntry{V, A}[_cf_copy(cf) for cf in n.values], n.alloc)
 end
 
 function join_into_dyn!(n::AbstractByteNode{V, A}, other::TrieNodeODRc{V, A}) where {V, A}

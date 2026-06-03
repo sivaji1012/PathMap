@@ -592,6 +592,28 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test PathMap.shared_node_id(child) == PathMap.shared_node_id(child_clone)  # SHARED
     end
 
+    # ── Gate B (byte node): clone_self of a DenseByteNode must also work + share.
+    #    deepcopy_bn briefly called copy(n.mask), but copy(::ByteMask) is undefined →
+    #    MethodError silently emptied any cloned byte node (regression in ec138d4).
+    #    The unit COW tests above stay in LineListNodes (≤2 slots), so they missed it;
+    #    MorkServer's metta_thread/copy integration caught it. This pins the byte-node
+    #    clone path: 26 distinct first bytes force a byte-node root.
+    @testset "Gate B — clone_self of a byte node shares children (no copy(mask) error)" begin
+        m = PM{Int}()
+        for c in 0x61:0x7a                       # 'a'..'z' first bytes → root is a byte node
+            set_val_at!(m, vcat(UInt8[c], b"X"), Int(c))
+        end
+        root = m.root
+        @test PathMap.node_tag(PathMap.as_tagged(root)) in
+              (PathMap.DENSE_BYTE_NODE_TAG, PathMap.CELL_BYTE_NODE_TAG)
+        cl = clone_self(PathMap.as_tagged(root))   # deepcopy_bn — threw MethodError pre-fix
+        @test cl !== nothing
+        _, child  = PathMap.node_child_iter_start(PathMap.as_tagged(root))
+        _, childc = PathMap.node_child_iter_start(PathMap.as_tagged(cl))
+        @test child !== nothing && childc !== nothing
+        @test PathMap.shared_node_id(child) == PathMap.shared_node_id(childc)   # SHARED
+    end
+
     # ── Gate A (close-out step 3): with sharing restored, drop_head_dyn!'s RECURSION
     #    into a shared child must not corrupt the source. Construction forces the
     #    LineListNode recursion (consume the parent key "abc" then recurse 1 byte into
