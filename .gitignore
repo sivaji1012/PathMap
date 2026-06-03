@@ -57,3 +57,5 @@ coverage/
 *.cert
 *.p12
 secrets.toml
+docs/build/
+docs/Manifest.toml

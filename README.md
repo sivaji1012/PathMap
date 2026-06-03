@@ -1,8 +1,11 @@
 # PathMap.jl
 
-[![CI](https://github.com/sivaji1012/PathMap/actions/workflows/ci.yml/badge.svg)](https://github.com/sivaji1012/PathMap/actions/workflows/ci.yml)
-[![Julia 1.10+](https://img.shields.io/badge/Julia-1.10%2B-blue)](https://julialang.org)
-[![v0.3.0](https://img.shields.io/badge/version-v0.3.0-orange)](https://github.com/sivaji1012/PathMap/releases/tag/v0.3.0)
+[![CI](https://github.com/CognitiveSubstratesAI/PathMap/actions/workflows/CI.yml/badge.svg)](https://github.com/CognitiveSubstratesAI/PathMap/actions/workflows/CI.yml)
+[![Docs (stable)](https://img.shields.io/badge/docs-stable-blue.svg)](https://cognitivesubstratesai.github.io/PathMap/stable/)
+[![Docs (dev)](https://img.shields.io/badge/docs-dev-blue.svg)](https://cognitivesubstratesai.github.io/PathMap/dev/)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/invenia/BlueStyle)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![Julia 1.12+](https://img.shields.io/badge/Julia-1.12%2B-blue)](https://julialang.org)
 
 A high-performance, structurally-shared, byte-keyed trie map for Julia —
 the substrate for [MORK.jl](../MORK) and the broader

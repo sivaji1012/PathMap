@@ -1,8 +1,18 @@
 using Test
 using PathMap
+using Aqua
 const PM = PathMap.PathMap   # PathMap module and PathMap type share the same name
 
 @testset "PathMap" begin
+    @testset "Aqua quality" begin
+        # unbound_args: the lattice ops take Option-style `Union{Nothing,V}` args and
+        # a more-specific `(::Nothing,::Nothing)` method handles the all-nothing case,
+        # so the `where V` methods are never instantiated unbound — intentional, skip.
+        # deps_compat check_extras=false: [extras] are dev-only tools (Cthulhu, Debugger,
+        # ProfileView, …); runtime deps carry [compat].
+        Aqua.test_all(PathMap; unbound_args = false, deps_compat = (check_extras = false,))
+    end
+
     @testset "basic CRUD" begin
         m = PM{Int}()
         set_val_at!(m, b"alpha", 1)
