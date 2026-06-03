@@ -614,6 +614,24 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         @test PathMap.shared_node_id(child) == PathMap.shared_node_id(childc)   # SHARED
     end
 
+    # ── Gate A (graft): by-reference graft of a subtrie into another location SHARES
+    #    nodes; a subsequent write into the grafted location must uniquify on descent
+    #    so the source subtrie is preserved. This is the COW property MorkServer's
+    #    cmd_copy relies on (O(1) wz.graft instead of an O(n) value-copy).
+    @testset "Gate A — graft then write into shared subtrie preserves source" begin
+        m = PM{Int}()
+        set_val_at!(m, b"Sab", 1)
+        set_val_at!(m, b"Scd", 2)
+        src_anr = PathMap.tr_get_focus_anr(PathMap.trie_ref_at_path(m, b"S"))
+        wz = write_zipper(m); wz_descend_to!(wz, b"D"); PathMap.wz_graft!(wz, src_anr)
+        @test get_val_at(m, b"Dab") == 1 && get_val_at(m, b"Dcd") == 2   # graft copied
+        set_val_at!(m, b"Dab", 99)                                       # mutate shared graft
+        set_val_at!(m, b"Def", 7)
+        @test get_val_at(m, b"Sab") == 1 && get_val_at(m, b"Scd") == 2   # source intact (COW)
+        @test get_val_at(m, b"Sef") === nothing
+        @test get_val_at(m, b"Dab") == 99 && get_val_at(m, b"Def") == 7  # dest reflects writes
+    end
+
     # ── Gate A (close-out step 3): with sharing restored, drop_head_dyn!'s RECURSION
     #    into a shared child must not corrupt the source. Construction forces the
     #    LineListNode recursion (consume the parent key "abc" then recurse 1 byte into
