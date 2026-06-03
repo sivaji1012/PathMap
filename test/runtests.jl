@@ -10,7 +10,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # so the `where V` methods are never instantiated unbound — intentional, skip.
         # deps_compat check_extras=false: [extras] are dev-only tools (Cthulhu, Debugger,
         # ProfileView, …); runtime deps carry [compat].
-        Aqua.test_all(PathMap; unbound_args = false, deps_compat = (check_extras = false,))
+        Aqua.test_all(PathMap; unbound_args=false, deps_compat=(check_extras=false,))
     end
 
     @testset "basic CRUD" begin
