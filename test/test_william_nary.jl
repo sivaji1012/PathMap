@@ -21,7 +21,9 @@ PM = PathMap.PathMap
             set_val_at!(m3, Vector{UInt8}(k), UNIT_VAL)
         end
         out = PM{UnitVal}()
-        wz_join_n!(write_zipper(out), [write_zipper(m1), write_zipper(m2), write_zipper(m3)])
+        wz_join_n!(
+            write_zipper(out), [write_zipper(m1), write_zipper(m2), write_zipper(m3)]
+        )
         rz = read_zipper(out);
         keys = Set{String}()
         while zipper_to_next_val!(rz)
@@ -49,7 +51,9 @@ PM = PathMap.PathMap
             set_val_at!(m3, Vector{UInt8}(k), UNIT_VAL)
         end
         out = PM{UnitVal}()
-        wz_meet_n!(write_zipper(out), [write_zipper(m1), write_zipper(m2), write_zipper(m3)])
+        wz_meet_n!(
+            write_zipper(out), [write_zipper(m1), write_zipper(m2), write_zipper(m3)]
+        )
         rz = read_zipper(out);
         keys = Set{String}()
         while zipper_to_next_val!(rz)
@@ -61,7 +65,7 @@ PM = PathMap.PathMap
     end
 
     @testset "3-way subtract = patterns unique to base" begin
-        base   = PM{UnitVal}()
+        base = PM{UnitVal}()
         noise1 = PM{UnitVal}()
         noise2 = PM{UnitVal}()
         for k in ["keep-a", "keep-b", "remove-c", "remove-d"]
@@ -74,7 +78,10 @@ PM = PathMap.PathMap
             set_val_at!(noise2, Vector{UInt8}(k), UNIT_VAL)
         end
         out = PM{UnitVal}()
-        wz_subtract_n!(write_zipper(out), [write_zipper(base), write_zipper(noise1), write_zipper(noise2)])
+        wz_subtract_n!(
+            write_zipper(out),
+            [write_zipper(base), write_zipper(noise1), write_zipper(noise2)]
+        )
         rz = read_zipper(out);
         keys = Set{String}()
         while zipper_to_next_val!(rz)

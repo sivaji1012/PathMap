@@ -28,9 +28,9 @@ Cartesian-product zipper over N factors.
 Mirrors `ProductZipper<'factor_z, 'trie, V, A>`.
 """
 mutable struct ProductZipper{V, A <: Allocator}
-    z            :: ReadZipperCore{V, A}      # primary cursor (owns the ancestor stack)
-    secondaries  :: Vector{TrieRefBorrowed{V, A}}  # secondary factor roots
-    factor_paths :: Vector{Int}             # path lengths at each factor boundary
+    z::ReadZipperCore{V, A}      # primary cursor (owns the ancestor stack)
+    secondaries::Vector{TrieRefBorrowed{V, A}}  # secondary factor roots
+    factor_paths::Vector{Int}             # path lengths at each factor boundary
 end
 
 """
@@ -103,7 +103,9 @@ An empty / absent prefix region yields a ProductZipper over an empty trie
 (iteration produces nothing), matching the "no matches under this prefix"
 semantics callers expect.
 """
-function ProductZipper(m::PathMap{V, A}, prefix::AbstractVector{UInt8}, n_factors::Int) where {V, A}
+function ProductZipper(
+    m::PathMap{V, A}, prefix::AbstractVector{UInt8}, n_factors::Int
+) where {V, A}
     n_factors >= 1 || throw(ArgumentError("n_factors must be >= 1"))
     _ensure_root!(m)
     tr = trie_ref_at_path(m, prefix)
@@ -190,13 +192,13 @@ end
 # Zipper interface
 # =====================================================================
 
-pz_at_root(pz::ProductZipper)::Bool    = isempty(zipper_path(pz.z))
-pz_path(pz::ProductZipper)             = zipper_path(pz.z)
-pz_is_val(pz::ProductZipper)::Bool     = zipper_is_val(pz.z)
+pz_at_root(pz::ProductZipper)::Bool = isempty(zipper_path(pz.z))
+pz_path(pz::ProductZipper) = zipper_path(pz.z)
+pz_is_val(pz::ProductZipper)::Bool = zipper_is_val(pz.z)
 pz_val(pz::ProductZipper{V}) where {V} = zipper_val(pz.z)
-pz_path_exists(pz::ProductZipper)      = zipper_path_exists(pz.z)
-pz_child_mask(pz::ProductZipper)       = zipper_child_mask(pz.z)
-pz_child_count(pz::ProductZipper)      = zipper_child_count(pz.z)
+pz_path_exists(pz::ProductZipper) = zipper_path_exists(pz.z)
+pz_child_mask(pz::ProductZipper) = zipper_child_mask(pz.z)
+pz_child_count(pz::ProductZipper) = zipper_child_count(pz.z)
 
 function pz_val_count(pz::ProductZipper)
     @assert pz_focus_factor(pz) == pz_factor_count(pz) - 1
@@ -221,7 +223,8 @@ function pz_descend_to_existing!(pz::ProductZipper, k)
         descended += this_step
         if _pz_has_next_factor(pz)
             if zipper_child_count(pz.z) == 0 &&
-                (isempty(pz.factor_paths) ? 0 : pz.factor_paths[end]) < length(zipper_path(pz.z))
+                (isempty(pz.factor_paths) ? 0 : pz.factor_paths[end]) <
+               length(zipper_path(pz.z))
                 _pz_enroll_next_factor!(pz)
             end
         else
@@ -243,7 +246,8 @@ function pz_descend_to_byte!(pz::ProductZipper, k::UInt8)
     zipper_descend_to_byte!(pz.z, k)
     if zipper_child_count(pz.z) == 0
         if _pz_has_next_factor(pz) && zipper_path_exists(pz.z)
-            @assert (isempty(pz.factor_paths) ? 0 : pz.factor_paths[end]) < length(zipper_path(pz.z))
+            @assert (isempty(pz.factor_paths) ? 0 : pz.factor_paths[end]) <
+                length(zipper_path(pz.z))
             _pz_enroll_next_factor!(pz)
             nk = collect(_zc_node_key(pz.z))
             isempty(nk) || _zc_regularize!(pz.z)
@@ -291,7 +295,7 @@ function pz_to_prev_sibling_byte!(pz::ProductZipper)
     moved
 end
 
-function pz_ascend!(pz::ProductZipper, steps::Int = 1)
+function pz_ascend!(pz::ProductZipper, steps::Int=1)
     result = zipper_ascend!(pz.z, steps)
     _pz_fix_after_ascend!(pz)
     result

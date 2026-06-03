@@ -220,11 +220,15 @@ Handle a byte range `range` where only the zipper(s) identified by
 
 Mirrors `MergePolicy::on_single` in upstream zipper_algebra.rs.
 """
-function _zm_on_single!(::JoinP, z::WriteZipperCore, ::UInt64, range::ByteMask, out::WriteZipperCore)
+function _zm_on_single!(
+    ::JoinP, z::WriteZipperCore, ::UInt64, range::ByteMask, out::WriteZipperCore
+)
     _zm_graft_children_masked!(out, z, range)
 end
 _zm_on_single!(::MeetP, z, mask_bit, range, out) = nothing
-function _zm_on_single!(::SubtractP, z::WriteZipperCore, mask_bit::UInt64, range::ByteMask, out::WriteZipperCore)
+function _zm_on_single!(
+    ::SubtractP, z::WriteZipperCore, mask_bit::UInt64, range::ByteMask, out::WriteZipperCore
+)
     # graft only if bit 0 is set (left-most zipper = the base set)
     mask_bit & UInt64(1) != 0 && _zm_graft_children_masked!(out, z, range)
 end
@@ -355,7 +359,8 @@ All input zippers are returned to their entry position when this function
 returns.
 """
 function _zm_merge_n!(
-    policy::ZipperMergePolicy, zs::AbstractVector{<:WriteZipperCore{V, A}}, active::UInt64, out::WriteZipperCore{V, A}
+    policy::ZipperMergePolicy, zs::AbstractVector{<:WriteZipperCore{V, A}}, active::UInt64,
+    out::WriteZipperCore{V, A}
 ) where {V, A}
     N = length(zs)
     @assert N >= 1 && N <= 64
@@ -393,7 +398,9 @@ function _zm_merge_n!(
     end
 
     # ── combine root values ───────────────────────────────────────────
-    let vals = (wz_is_val(zs[i + 1]) ? wz_get_val(zs[i + 1]) : nothing for i in active_bits())
+    let vals = (
+            wz_is_val(zs[i + 1]) ? wz_get_val(zs[i + 1]) : nothing for i in active_bits()
+        )
         combined = _zm_combine_n(policy, vals)
         combined !== nothing && wz_set_val!(out, combined)
     end
@@ -417,8 +424,8 @@ function _zm_merge_n!(
         while !break_merge
 
             # find minimum byte (min_byte) and frontier bitmask
-            min_byte  = nothing
-            frontier  = UInt64(0)
+            min_byte = nothing
+            frontier = UInt64(0)
             next_byte = nothing
 
             for i in active_bits()
@@ -446,7 +453,7 @@ function _zm_merge_n!(
             # no more children at this level
             min_byte === nothing && break
 
-            a   = min_byte
+            a = min_byte
             cnt = count_ones(frontier)
 
             if frontier == active
@@ -466,7 +473,10 @@ function _zm_merge_n!(
                 end
 
                 # combine values
-                let vals = (wz_is_val(zs[i + 1]) ? wz_get_val(zs[i + 1]) : nothing for i in active_bits())
+                let vals = (
+                        wz_is_val(zs[i + 1]) ? wz_get_val(zs[i + 1]) : nothing for
+                        i in active_bits()
+                    )
                     combined = _zm_combine_n(policy, vals)
                     combined !== nothing && wz_set_val!(out, combined)
                 end
@@ -486,7 +496,13 @@ function _zm_merge_n!(
                     _zm_on_single!(policy, zs[i + 1], frontier, from_range(Int(a):255), out)
                     break_merge = true
                 else
-                    _zm_on_single!(policy, zs[i + 1], frontier, from_range(Int(a):(Int(next_byte) - 1)), out)
+                    _zm_on_single!(
+                        policy,
+                        zs[i + 1],
+                        frontier,
+                        from_range(Int(a):(Int(next_byte) - 1)),
+                        out
+                    )
                     # advance this zipper past the handled range
                     adv = masks[i + 1] & from_range(Int(next_byte):255)
                     bytes[i + 1] = indexed_bit(adv, 0, true)
@@ -541,7 +557,9 @@ restored to root on return.
 
 Mirrors `zipper_n_join` in upstream PathMap `src/experimental/zipper_algebra.rs`.
 """
-function wz_join_n!(out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}) where {V, A}
+function wz_join_n!(
+    out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}
+) where {V, A}
     isempty(zs) && return nothing
     length(zs) <= 64 || error("wz_join_n!: at most 64 inputs supported")
     active = (UInt64(1) << length(zs)) - UInt64(1)
@@ -557,7 +575,9 @@ navigated in place and restored to root on return.
 
 Mirrors `zipper_n_meet` in upstream PathMap `src/experimental/zipper_algebra.rs`.
 """
-function wz_meet_n!(out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}) where {V, A}
+function wz_meet_n!(
+    out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}
+) where {V, A}
     isempty(zs) && return nothing
     length(zs) <= 64 || error("wz_meet_n!: at most 64 inputs supported")
     active = (UInt64(1) << length(zs)) - UInt64(1)
@@ -574,7 +594,9 @@ restored to root on return.
 
 Mirrors `zipper_n_subtract` in upstream PathMap `src/experimental/zipper_algebra.rs`.
 """
-function wz_subtract_n!(out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}) where {V, A}
+function wz_subtract_n!(
+    out::WriteZipperCore{V, A}, zs::AbstractVector{<:WriteZipperCore{V, A}}
+) where {V, A}
     isempty(zs) && return nothing
     length(zs) <= 64 || error("wz_subtract_n!: at most 64 inputs supported")
     active = (UInt64(1) << length(zs)) - UInt64(1)

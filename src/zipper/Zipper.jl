@@ -22,7 +22,7 @@ Design note — inner-node storage (TaggedNodeRef analogue):
 # Module-level constants
 # =====================================================================
 
-const EXPECTED_DEPTH    = 16
+const EXPECTED_DEPTH = 16
 const EXPECTED_PATH_LEN = 64
 
 # =====================================================================
@@ -39,7 +39,8 @@ const EXPECTED_PATH_LEN = 64
 # Loaded AFTER all node files (BridgeNode is last), so all types are defined.
 
 const TrieNodeVariant{V, A} = Union{
-    EmptyNode{V, A}, LineListNode{V, A}, DenseByteNode{V, A}, CellByteNode{V, A}, TinyRefNode{V, A}, BridgeNode{V, A}
+    EmptyNode{V, A}, LineListNode{V, A}, DenseByteNode{V, A}, CellByteNode{V, A},
+    TinyRefNode{V, A}, BridgeNode{V, A}
 }
 
 # =====================================================================
@@ -69,11 +70,11 @@ end
 # Returns (final_rc, remaining_key_view, val).
 
 function node_along_path(
-    root_rc::TrieNodeODRc{V, A}, path, root_val::Union{Nothing, V}, stop_short::Bool = false
+    root_rc::TrieNodeODRc{V, A}, path, root_val::Union{Nothing, V}, stop_short::Bool=false
 ) where {V, A}
-    node  = root_rc
-    key   = path
-    val   = root_val
+    node = root_rc
+    key = path
+    val = root_val
     inner = _fnode(_rc_inner(node), V, A)
 
     if !isempty(key)
@@ -82,14 +83,14 @@ function node_along_path(
             result === nothing && break
             consumed, next_rc = result
             if consumed < length(key)
-                node  = next_rc
-                key   = view(key, (consumed + 1):length(key))
+                node = next_rc
+                key = view(key, (consumed + 1):length(key))
                 inner = _fnode(_rc_inner(node), V, A)
             else
                 if !stop_short
-                    val  = node_get_val(inner, key)
+                    val = node_get_val(inner, key)
                     node = next_rc
-                    key  = view(key, 1:0)   # empty subarray
+                    key = view(key, 1:0)   # empty subarray
                 else
                     val = nothing
                 end
@@ -135,15 +136,15 @@ the Julia equivalent of upstream's `TaggedNodeRef<'a,V,A>` typed ref.
 `nothing` is the EmptyNode sentinel. NOT `TrieNodeODRc` wrappers.
 """
 mutable struct ReadZipperCore{V, A <: Allocator}
-    root_key_start   :: Int               # 0-indexed: prefix_buf[root_key_start+1:] = root key
-    root_val         :: Union{Nothing, V} # value at the zipper root (if any)
-    root_node        :: TrieNodeODRc{V, A} # anchor Rc — keeps root sub-trie alive
-    focus_node       :: Union{Nothing, AbstractTrieNode{V, A}}  # nothing = EmptyNode sentinel (TaggedNodeRef<V,A>)
-    focus_iter_token :: UInt128           # iteration token (NODE_ITER_INVALID = unstarted)
-    prefix_buf       :: Vector{UInt8}     # full path buffer: origin_path ++ relative_path
-    origin_path_len  :: Int               # length of initial path prefix embedded in prefix_buf
-    ancestors        :: Vector{Tuple{Union{Nothing, AbstractTrieNode{V, A}}, UInt128, Int}} # (TaggedNodeRef, iter_tok, key_offset_0)
-    alloc            :: A
+    root_key_start::Int               # 0-indexed: prefix_buf[root_key_start+1:] = root key
+    root_val::Union{Nothing, V} # value at the zipper root (if any)
+    root_node::TrieNodeODRc{V, A} # anchor Rc — keeps root sub-trie alive
+    focus_node::Union{Nothing, AbstractTrieNode{V, A}}  # nothing = EmptyNode sentinel (TaggedNodeRef<V,A>)
+    focus_iter_token::UInt128           # iteration token (NODE_ITER_INVALID = unstarted)
+    prefix_buf::Vector{UInt8}     # full path buffer: origin_path ++ relative_path
+    origin_path_len::Int               # length of initial path prefix embedded in prefix_buf
+    ancestors::Vector{Tuple{Union{Nothing, AbstractTrieNode{V, A}}, UInt128, Int}} # (TaggedNodeRef, iter_tok, key_offset_0)
+    alloc::A
 end
 
 const ReadZipperUntracked{V, A} = ReadZipperCore{V, A}
@@ -159,14 +160,14 @@ function ReadZipperCore(
     path::AbstractVector{UInt8},
     root_key_start_0::Int,
     root_val::Union{Nothing, V},
-    alloc::A,
+    alloc::A
 ) where {V, A <: Allocator}
     # Fix 2: pre-allocate prefix_buf and ancestors to avoid _growend!/memmove
     # in the hot descent loop.  sizehint! returns the vector in Julia 1.1+.
     _pbuf = Vector{UInt8}(path)
     length(_pbuf) < EXPECTED_PATH_LEN && sizehint!(_pbuf, EXPECTED_PATH_LEN)
     _anc_type = Tuple{Union{Nothing, AbstractTrieNode{V, A}}, UInt128, Int}
-    _anc      = sizehint!(Vector{_anc_type}(), EXPECTED_DEPTH)
+    _anc = sizehint!(Vector{_anc_type}(), EXPECTED_DEPTH)
     ReadZipperCore{V, A}(
         root_key_start_0,
         root_val,
@@ -176,7 +177,7 @@ function ReadZipperCore(
         _pbuf,
         length(path),                               # origin_path_len
         _anc,
-        alloc,
+        alloc
     )
 end
 
@@ -189,7 +190,7 @@ function ReadZipperCore_at_path(
     root_prefix_len::Int,
     root_key_start_0::Int,
     root_val::Union{Nothing, V},
-    alloc::A,
+    alloc::A
 ) where {V, A <: Allocator}
     sub_path = view(path, (root_key_start_0 + 1):length(path))
     final_rc, remaining_key, val = node_along_path(root_rc, sub_path, root_val, false)
@@ -301,7 +302,7 @@ function _zc_regularize!(z::ReadZipperCore{V, A}) where {V, A}
     result === nothing && return nothing
     consumed, next_rc = result
     push!(z.ancestors, (z.focus_node, z.focus_iter_token, length(z.prefix_buf)))
-    z.focus_node       = _rc_inner(next_rc)
+    z.focus_node = _rc_inner(next_rc)
     z.focus_iter_token = NODE_ITER_INVALID
 end
 
@@ -323,9 +324,11 @@ end
 Push a raw inner node onto the ancestor stack, making it the new focus.
 Mirrors `ReadZipperCore::push_node` (zipper.rs:2752).
 """
-function _zc_push_node!(z::ReadZipperCore{V, A}, node_inner::Union{Nothing, AbstractTrieNode{V, A}}) where {V, A}
+function _zc_push_node!(
+    z::ReadZipperCore{V, A}, node_inner::Union{Nothing, AbstractTrieNode{V, A}}
+) where {V, A}
     push!(z.ancestors, (z.focus_node, z.focus_iter_token, length(z.prefix_buf)))
-    z.focus_node       = node_inner
+    z.focus_node = node_inner
     z.focus_iter_token = NODE_ITER_INVALID
 end
 
@@ -392,7 +395,7 @@ function zipper_path_exists(z::ReadZipperCore{V, A}) where {V, A}
 end
 
 zipper_is_val(z::ReadZipperCore) = _is_val_internal(z)
-zipper_val(z::ReadZipperCore)    = _get_val(z)
+zipper_val(z::ReadZipperCore) = _get_val(z)
 
 function zipper_child_count(z::ReadZipperCore{V, A}) where {V, A}
     count_branches(_zfnode(z), _znode_key(z))
@@ -418,7 +421,8 @@ function zipper_reset!(z::ReadZipperCore)
 end
 
 # path relative to zipper root
-@inline zipper_path(z::ReadZipperCore) = view(z.prefix_buf, (z.origin_path_len + 1):length(z.prefix_buf))
+@inline zipper_path(z::ReadZipperCore) =
+    view(z.prefix_buf, (z.origin_path_len + 1):length(z.prefix_buf))
 
 function zipper_val_count(z::ReadZipperCore{V, A}) where {V, A}
     root_val_cnt = _is_val_internal(z) ? 1 : 0
@@ -566,7 +570,8 @@ function zipper_ascend_until!(z::ReadZipperCore{V, A}) where {V, A}
     while true
         isempty(_znode_key(z)) && _ascend_across_nodes!(z)
         _ascend_within_node!(z)
-        (zipper_child_count(z) > 1 || _is_val_internal(z) || zipper_at_root(z)) && return true
+        (zipper_child_count(z) > 1 || _is_val_internal(z) || zipper_at_root(z)) &&
+            return true
     end
 end
 
@@ -605,7 +610,8 @@ function _to_next_get_val!(z::ReadZipperCore{V, A}) where {V, A}
             if key_start < origin_len
                 unmod_len = origin_len - key_start
                 if unmod_len > length(key_bytes) ||
-                    view(z.prefix_buf, (key_start + 1):origin_len) != view(key_bytes, 1:unmod_len)
+                    view(z.prefix_buf, (key_start + 1):origin_len) !=
+                   view(key_bytes, 1:unmod_len)
                     resize!(z.prefix_buf, origin_len)
                     return nothing
                 end
@@ -792,7 +798,9 @@ end
 Like `zipper_descend_until!` but limited to `max_bytes` descent.
 Mirrors `ZipperMoving::descend_until_max_bytes`.
 """
-function zipper_descend_until_max_bytes!(z::ReadZipperCore{V, A}, max_bytes::Int) where {V, A}
+function zipper_descend_until_max_bytes!(
+    z::ReadZipperCore{V, A}, max_bytes::Int
+) where {V, A}
     max_bytes == 0 && return false
     target_len = length(zipper_path(z)) + max_bytes
     descended = zipper_descend_until!(z)
@@ -851,7 +859,8 @@ end
 """
 Descend to first path exactly `k` bytes from current focus. Mirrors `descend_first_k_path`.
 """
-zipper_descend_first_k_path!(z::ReadZipperCore, k::Int) = _zipper_k_path_internal!(z, k, length(zipper_path(z)))
+zipper_descend_first_k_path!(z::ReadZipperCore, k::Int) =
+    _zipper_k_path_internal!(z, k, length(zipper_path(z)))
 
 """
 Move to next path at same depth (k steps from common root). Mirrors `to_next_k_path`.
@@ -889,18 +898,18 @@ end
 # Used by ReadZipperTracked and external callers.
 # =====================================================================
 
-@inline rz_path_exists(z::ReadZipperCore)          = zipper_path_exists(z)
-@inline rz_is_val(z::ReadZipperCore)               = zipper_is_val(z)
+@inline rz_path_exists(z::ReadZipperCore) = zipper_path_exists(z)
+@inline rz_is_val(z::ReadZipperCore) = zipper_is_val(z)
 @inline rz_get_val(z::ReadZipperCore{V}) where {V} = zipper_val(z)
-@inline rz_path(z::ReadZipperCore)                 = zipper_path(z)
-@inline rz_child_count(z::ReadZipperCore)          = zipper_child_count(z)
-@inline rz_child_mask(z::ReadZipperCore)           = zipper_child_mask(z)
-@inline rz_val_count(z::ReadZipperCore)            = zipper_val_count(z)
-@inline rz_to_next_val!(z::ReadZipperCore)         = zipper_to_next_val!(z)
-@inline rz_descend_to!(z::ReadZipperCore, k)       = zipper_descend_to!(z, k)
-@inline rz_ascend!(z::ReadZipperCore, n::Int = 1)  = zipper_ascend!(z, n)
-@inline rz_reset!(z::ReadZipperCore)               = zipper_reset!(z)
-@inline rz_fork!(z::ReadZipperCore)                = zipper_fork!(z)
+@inline rz_path(z::ReadZipperCore) = zipper_path(z)
+@inline rz_child_count(z::ReadZipperCore) = zipper_child_count(z)
+@inline rz_child_mask(z::ReadZipperCore) = zipper_child_mask(z)
+@inline rz_val_count(z::ReadZipperCore) = zipper_val_count(z)
+@inline rz_to_next_val!(z::ReadZipperCore) = zipper_to_next_val!(z)
+@inline rz_descend_to!(z::ReadZipperCore, k) = zipper_descend_to!(z, k)
+@inline rz_ascend!(z::ReadZipperCore, n::Int=1) = zipper_ascend!(z, n)
+@inline rz_reset!(z::ReadZipperCore) = zipper_reset!(z)
+@inline rz_fork!(z::ReadZipperCore) = zipper_fork!(z)
 
 # =====================================================================
 # PathMap is now in src/pathmap/PathMap.jl (mirrors upstream trie_map.rs)

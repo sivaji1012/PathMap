@@ -7,8 +7,8 @@ buffer so absolute-path methods work correctly.
 """
 
 mutable struct EmptyZipper
-    path           :: Vector{UInt8}
-    path_start_idx :: Int
+    path::Vector{UInt8}
+    path_start_idx::Int
 end
 
 """
@@ -61,10 +61,10 @@ function ez_descend_to_byte!(z::EmptyZipper, k::UInt8)
 end
 
 ez_descend_indexed_byte!(::EmptyZipper, ::Int) = false
-ez_descend_first_byte!(::EmptyZipper)          = false
-ez_descend_until!(::EmptyZipper)               = false
+ez_descend_first_byte!(::EmptyZipper) = false
+ez_descend_until!(::EmptyZipper) = false
 
-function ez_ascend!(z::EmptyZipper, steps::Int = 1)
+function ez_ascend!(z::EmptyZipper, steps::Int=1)
     avail = length(z.path) - z.path_start_idx
     if steps > avail
         ez_reset!(z)
@@ -91,9 +91,9 @@ ez_to_next_sibling_byte!(::EmptyZipper) = false
 ez_to_prev_sibling_byte!(::EmptyZipper) = false
 
 # ZipperIteration
-ez_to_next_val!(::EmptyZipper)             = false
+ez_to_next_val!(::EmptyZipper) = false
 ez_descend_first_k_path!(::EmptyZipper, _) = false
-ez_to_next_k_path!(::EmptyZipper, _)       = false
+ez_to_next_k_path!(::EmptyZipper, _) = false
 
 # ZipperForking
 ez_fork!(z::EmptyZipper) = EmptyZipper(ez_origin_path(z))

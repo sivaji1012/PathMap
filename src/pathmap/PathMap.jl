@@ -17,9 +17,9 @@ Read API is fully implemented via `ReadZipperCore`.
 Write API (`set_val_at!`, `remove_val_at!`) is in WriteZipper.jl.
 """
 mutable struct PathMap{V, A <: Allocator}
-    root     :: Union{Nothing, TrieNodeODRc{V, A}}
-    root_val :: Union{Nothing, V}
-    alloc    :: A
+    root::Union{Nothing, TrieNodeODRc{V, A}}
+    root_val::Union{Nothing, V}
+    alloc::A
 end
 
 PathMap{V}() where {V} = PathMap{V, GlobalAlloc}(nothing, nothing, GlobalAlloc())
@@ -52,8 +52,8 @@ Creates a read-only zipper pre-positioned at `path`.
 function read_zipper_at_path(m::PathMap{V, A}, path::AbstractVector{UInt8}) where {V, A}
     _ensure_root!(m)
     root_rc = m.root::TrieNodeODRc{V, A}
-    path_v  = path isa Vector{UInt8} ? path : Vector{UInt8}(path)
-    rv      = isempty(path_v) ? m.root_val : nothing
+    path_v = path isa Vector{UInt8} ? path : Vector{UInt8}(path)
+    rv = isempty(path_v) ? m.root_val : nothing
     ReadZipperCore_at_path(root_rc, path_v, length(path_v), 0, rv, m.alloc)
 end
 function read_zipper_at_path(m::PathMap{V, A}, path::AbstractString) where {V, A}
@@ -84,7 +84,9 @@ function get_val_at(m::PathMap{V, A}, path) where {V, A}
     m.root === nothing && return m.root_val
     path_v = path isa AbstractVector{UInt8} ? path : collect(UInt8, path)
     isempty(path_v) && return m.root_val
-    last_rc, remaining, val = node_along_path(m.root::TrieNodeODRc{V, A}, path_v, m.root_val)
+    last_rc, remaining, val = node_along_path(
+        m.root::TrieNodeODRc{V, A}, path_v, m.root_val
+    )
     isempty(remaining) && return val
     # Phase 2: node_along_path stalled because remaining matches a value slot,
     # not a child slot. Try node_get_val on the stalled node.
@@ -118,7 +120,9 @@ function path_exists_at(m::PathMap{V, A}, path) where {V, A}
 end
 
 function Base.isempty(m::PathMap)
-    root_empty = m.root === nothing || node_is_empty(_fnode(_rc_inner(m.root), eltype_V(m), eltype_A(m)))
+    root_empty =
+        m.root === nothing ||
+        node_is_empty(_fnode(_rc_inner(m.root), eltype_V(m), eltype_A(m)))
     root_empty && isnothing(m.root_val)
 end
 
@@ -157,7 +161,7 @@ function _pm_build(
             flat_rn = rn isa TrieNodeODRc ? rn : nothing
             flat_rv = rv
             AlgResElement(PathMap(flat_rn, flat_rv, alloc))
-        end,
+        end
     )
 end
 
@@ -168,13 +172,13 @@ Lattice join. Ports `Lattice::pjoin` for PathMap (trie_map.rs line 685).
 """
 function pjoin(a::PathMap{V, A}, b::PathMap{V, A}) where {V, A}
     node_res = pjoin(a.root, b.root)
-    val_res  = pjoin(a.root_val, b.root_val)
+    val_res = pjoin(a.root_val, b.root_val)
     alg_merge(
         node_res,
         val_res,
         which -> which == 0 ? a.root : b.root,
         which -> which == 0 ? a.root_val : b.root_val,
-        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc)),
+        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc))
     )
 end
 
@@ -185,13 +189,13 @@ Lattice meet. Ports `Lattice::pmeet` for PathMap (trie_map.rs line 725).
 """
 function pmeet(a::PathMap{V, A}, b::PathMap{V, A}) where {V, A}
     node_res = pmeet(a.root, b.root)
-    val_res  = pmeet(a.root_val, b.root_val)
+    val_res = pmeet(a.root_val, b.root_val)
     alg_merge(
         node_res,
         val_res,
         which -> which == 0 ? a.root : b.root,
         which -> which == 0 ? a.root_val : b.root_val,
-        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc)),
+        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc))
     )
 end
 
@@ -202,13 +206,13 @@ Lattice subtract. Ports `DistributiveLattice::psubtract` for PathMap (trie_map.r
 """
 function psubtract(a::PathMap{V, A}, b::PathMap{V, A}) where {V, A}
     node_res = psubtract(a.root, b.root)
-    val_res  = psubtract(a.root_val, b.root_val)
+    val_res = psubtract(a.root_val, b.root_val)
     alg_merge(
         node_res,
         val_res,
         which -> which == 0 ? a.root : b.root,
         which -> which == 0 ? a.root_val : b.root_val,
-        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc)),
+        (rn, rv) -> AlgResElement(PathMap{V, A}(rn, rv, a.alloc))
     )
 end
 

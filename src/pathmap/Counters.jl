@@ -23,10 +23,12 @@ mutable struct PathMapCounters
     cur_run_start_depth::Int
 end
 
-PathMapCounters() = PathMapCounters(Int[], Int[], Int[], Int[], Int[], Int[], Int[], Int[], Int[], Vector{Int}[], 0)
+PathMapCounters() = PathMapCounters(
+    Int[], Int[], Int[], Int[], Int[], Int[], Int[], Int[], Int[], Vector{Int}[], 0
+)
 
-total_nodes(c::PathMapCounters)       = sum(c.total_nodes_by_depth; init = 0)
-total_child_items(c::PathMapCounters) = sum(c.total_child_items_by_depth; init = 0)
+total_nodes(c::PathMapCounters) = sum(c.total_nodes_by_depth; init=0)
+total_child_items(c::PathMapCounters) = sum(c.total_child_items_by_depth; init=0)
 
 # =====================================================================
 # Internal helpers
@@ -43,7 +45,7 @@ function _cnt_resize!(c::PathMapCounters, depth::Int)
         c.total_slot0_length_by_depth,
         c.slot1_occupancy_count_by_depth,
         c.total_slot1_length_by_depth,
-        c.list_node_single_byte_keys_by_depth,
+        c.list_node_single_byte_keys_by_depth
     ]
         while length(v) <= depth
             ;
@@ -57,7 +59,8 @@ function _cnt_common!(c::PathMapCounters, node::AbstractTrieNode, depth::Int)
     ic = _cnt_item_count(node)
     c.total_nodes_by_depth[depth + 1] += 1
     c.total_child_items_by_depth[depth + 1] += ic
-    c.max_child_items_by_depth[depth + 1] < ic && (c.max_child_items_by_depth[depth + 1] = ic)
+    c.max_child_items_by_depth[depth + 1] < ic &&
+        (c.max_child_items_by_depth[depth + 1] = ic)
 end
 
 function _cnt_item_count(node::AbstractTrieNode)
@@ -99,7 +102,8 @@ function _cnt_count_node!(c::PathMapCounters, node::AbstractTrieNode, depth::Int
             c.slot1_occupancy_count_by_depth[depth + 1] += 1
             c.total_slot1_length_by_depth[depth + 1] += length(k1)
         end
-        (length(k0) == 1 || length(k1) == 1) && (c.list_node_single_byte_keys_by_depth[depth + 1] += 1)
+        (length(k0) == 1 || length(k1) == 1) &&
+            (c.list_node_single_byte_keys_by_depth[depth + 1] += 1)
     else
         _cnt_common!(c, node, depth)
     end
@@ -144,13 +148,15 @@ end
 Print per-depth histogram of nodes and branch counts.
 """
 function print_histogram_by_depth(c::PathMapCounters)
-    println("\n\ttotal_nodes\ttot_child_cnt\tavg_branch\tmax_child_items\tdense_nodes\tlist_nodes")
+    println(
+        "\n\ttotal_nodes\ttot_child_cnt\tavg_branch\tmax_child_items\tdense_nodes\tlist_nodes"
+    )
     for depth in 0:(length(c.total_nodes_by_depth) - 1)
-        n   = c.total_nodes_by_depth[depth + 1]
-        ci  = c.total_child_items_by_depth[depth + 1]
+        n = c.total_nodes_by_depth[depth + 1]
+        ci = c.total_child_items_by_depth[depth + 1]
         avg = n > 0 ? ci / n : 0.0
         println(
-            "$depth\t$n\t\t$ci\t\t$(round(avg,digits=4))\t\t$(c.max_child_items_by_depth[depth+1])\t\t$(c.total_dense_byte_nodes_by_depth[depth+1])\t\t$(c.total_list_nodes_by_depth[depth+1])",
+            "$depth\t$n\t\t$ci\t\t$(round(avg,digits=4))\t\t$(c.max_child_items_by_depth[depth+1])\t\t$(c.total_dense_byte_nodes_by_depth[depth+1])\t\t$(c.total_list_nodes_by_depth[depth+1])"
         )
     end
     tn = total_nodes(c)
@@ -166,9 +172,9 @@ function print_run_length_histogram(c::PathMapCounters)
     println("run_len\trun_cnt\trun_end_mean_depth")
     for (run_len, depths) in enumerate(c.run_length_histogram)
         isempty(depths) && continue
-        total     = sum(depths; init = 0)
-        depth_sum = sum((d*cnt for (d, cnt) in enumerate(depths)); init = 0)
-        avg       = total > 0 ? depth_sum/total : 0.0
+        total = sum(depths; init=0)
+        depth_sum = sum((d*cnt for (d, cnt) in enumerate(depths)); init=0)
+        avg = total > 0 ? depth_sum/total : 0.0
         println("$(run_len-1)\t$total\t$(round(avg,digits=4))")
     end
 end
@@ -178,17 +184,17 @@ Print list-node-specific statistics.
 """
 function print_list_node_stats(c::PathMapCounters)
     println(
-        "\n\ttotal_nodes\tlist_node_cnt\tlist_node_rto\tavg_slot0_len\tslot1_cnt\tslot1_used_rto\tavg_slot1_len\tone_byte_keys\tone_byte_rto",
+        "\n\ttotal_nodes\tlist_node_cnt\tlist_node_rto\tavg_slot0_len\tslot1_cnt\tslot1_used_rto\tavg_slot1_len\tone_byte_keys\tone_byte_rto"
     )
     for depth in 0:(length(c.total_nodes_by_depth) - 1)
-        n   = c.total_nodes_by_depth[depth + 1]
-        ln  = c.total_list_nodes_by_depth[depth + 1]
-        s1  = c.slot1_occupancy_count_by_depth[depth + 1]
+        n = c.total_nodes_by_depth[depth + 1]
+        ln = c.total_list_nodes_by_depth[depth + 1]
+        s1 = c.slot1_occupancy_count_by_depth[depth + 1]
         obk = c.list_node_single_byte_keys_by_depth[depth + 1]
         sl0 = c.total_slot0_length_by_depth[depth + 1]
         sl1 = c.total_slot1_length_by_depth[depth + 1]
         println(
-            "$depth\t$n\t\t$ln\t\t$(round(ln/max(1,n)*100,digits=1))%\t\t$(round(sl0/max(1,ln),digits=4))\t\t$s1\t\t$(round(s1/max(1,ln)*100,digits=1))%\t\t$(round(sl1/max(1,s1),digits=4))\t\t$obk\t\t$(round(obk/max(1,ln)*100,digits=1))%",
+            "$depth\t$n\t\t$ln\t\t$(round(ln/max(1,n)*100,digits=1))%\t\t$(round(sl0/max(1,ln),digits=4))\t\t$s1\t\t$(round(s1/max(1,ln)*100,digits=1))%\t\t$(round(sl1/max(1,s1),digits=4))\t\t$obk\t\t$(round(obk/max(1,ln)*100,digits=1))%"
         )
     end
 end

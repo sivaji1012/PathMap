@@ -71,7 +71,8 @@ end
 
 node_remove_all_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::Bool) = false
 
-node_remove_unmasked_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool) = nothing
+node_remove_unmasked_branches!(::EmptyNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool) =
+    nothing
 
 node_is_empty(::EmptyNode) = true
 
@@ -151,7 +152,11 @@ function drop_head_dyn!(::EmptyNode, ::Int)
 end
 
 function pmeet_dyn(::EmptyNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
-    node_is_empty(other) ? AlgResIdentity(SELF_IDENT | COUNTER_IDENT) : AlgResIdentity(SELF_IDENT)
+    if node_is_empty(other)
+        AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
+    else
+        AlgResIdentity(SELF_IDENT)
+    end
 end
 
 function psubtract_dyn(::EmptyNode{V, A}, ::AbstractTrieNode{V, A}) where {V, A}

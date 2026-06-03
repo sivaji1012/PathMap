@@ -18,9 +18,9 @@ Julia translation notes:
 # =====================================================================
 
 mutable struct _CataFrame
-    child_idx  :: Int
-    child_cnt  :: Int
-    child_addr :: Union{Nothing, UInt64}   # for caching (objectid of node)
+    child_idx::Int
+    child_cnt::Int
+    child_addr::Union{Nothing, UInt64}   # for caching (objectid of node)
 end
 
 _CataFrame(z::ReadZipperCore) = _CataFrame(0, zipper_child_count(z), nothing)
@@ -46,7 +46,7 @@ function _cata_ascend_to_fork!(
     z::ReadZipperCore{V, A},
     alg_f::Function,   # (ByteMask, children::Vector, jump_len::Int, val, path::Vector{UInt8}) -> W
     children::Vector,
-    jumping::Bool,
+    jumping::Bool
 ) where {V, A}
     if jumping
         child_mask = zipper_child_mask(z)
@@ -55,12 +55,12 @@ function _cata_ascend_to_fork!(
             old_path_len = length(zipper_origin_path(z))
             # Capture the OLD path BEFORE ascending (mirrors origin_path_assert_len)
             old_path = copy(zipper_origin_path(z))
-            old_val  = zipper_val(z)
+            old_val = zipper_val(z)
             ascended = zipper_ascend_until!(z)
             @assert ascended "ascend_until must move"
 
             origin_path = zipper_origin_path(z)
-            cc          = zipper_child_count(z)
+            cc = zipper_child_count(z)
             is_val_here = zipper_is_val(z)
 
             jump_len = if cc != 1 || is_val_here
@@ -76,7 +76,8 @@ function _cata_ascend_to_fork!(
             (cc != 1 || zipper_at_root(z)) && return w
 
             z_children = [w]
-            byte       = length(origin_path) >= old_path_len - jump_len ? origin_path[end] : UInt8(0)
+            byte =
+                length(origin_path) >= old_path_len - jump_len ? origin_path[end] : UInt8(0)
             child_mask = ByteMask(byte)
         end
     else
@@ -85,9 +86,9 @@ function _cata_ascend_to_fork!(
         z_children = children
         while true
             origin_path = copy(zipper_origin_path(z))
-            byte        = isempty(origin_path) ? UInt8(0) : origin_path[end]
-            val         = zipper_val(z)
-            w           = alg_f(child_mask, z_children, 0, val, origin_path)
+            byte = isempty(origin_path) ? UInt8(0) : origin_path[end]
+            val = zipper_val(z)
+            w = alg_f(child_mask, z_children, 0, val, origin_path)
 
             ascended = zipper_ascend_byte!(z)
             @assert ascended "ascend_byte must move"
@@ -133,7 +134,9 @@ DFS fold from leaves to root.  At each forking point, calls:
 `alg_f(child_mask::ByteMask, children::Vector{W}, jump_len::Int, val::Union{Nothing,V}, path::Vector{UInt8}) → W`
 `jumping=true` skips monotone paths between forks.
 """
-function _cata_side_effect!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) where {V, A}
+function _cata_side_effect!(
+    z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool
+) where {V, A}
     stack = _CataFrame[]
     children = []
     frame_idx = 0
@@ -143,7 +146,9 @@ function _cata_side_effect!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::B
 
     if !zipper_descend_first_byte!(z)
         # Empty trie special case
-        return alg_f(zipper_child_mask(z), [], 0, zipper_val(z), copy(zipper_origin_path(z)))
+        return alg_f(
+            zipper_child_mask(z), [], 0, zipper_val(z), copy(zipper_origin_path(z))
+        )
     end
 
     while true
@@ -164,9 +169,9 @@ function _cata_side_effect!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::B
             # Keep ascending until we reach an unfinished fork
             while stack[frame_idx + 1].child_idx == stack[frame_idx + 1].child_cnt
                 if frame_idx == 0
-                    sf  = stack[1]
+                    sf = stack[1]
                     val = zipper_val(z)
-                    cm  = zipper_child_mask(z)
+                    cm = zipper_child_mask(z)
                     @assert sf.child_idx == sf.child_cnt
                     @assert sf.child_cnt == length(children)
                     w = if sf.child_cnt != 1 || val !== nothing || !jumping
@@ -176,10 +181,10 @@ function _cata_side_effect!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::B
                     end
                     return w
                 else
-                    sf          = stack[frame_idx + 1]
+                    sf = stack[frame_idx + 1]
                     child_start = length(children) - sf.child_cnt
-                    sub_ch      = children[(child_start + 1):end]
-                    cur_w       = _cata_ascend_to_fork!(z, alg_f, sub_ch, jumping)
+                    sub_ch = children[(child_start + 1):end]
+                    cur_w = _cata_ascend_to_fork!(z, alg_f, sub_ch, jumping)
                     resize!(children, child_start)
                     frame_idx -= 1
                     push!(children, cur_w)
@@ -220,9 +225,9 @@ where `sub_path` is the "jumped" sub-path for jumping variant (else `[]`).
 function _cata_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) where {V, A}
     zipper_reset!(z)
 
-    stack    = _CataFrame[]
+    stack = _CataFrame[]
     children = []
-    cache    = Dict{UInt64, Any}()   # node objectid → cached W
+    cache = Dict{UInt64, Any}()   # node objectid → cached W
 
     push!(stack, _CataFrame(z))
 
@@ -245,13 +250,17 @@ function _cata_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) 
             # Descend to leaf or fork
             is_leaf = false
             while zipper_child_count(z) < 2
-                !zipper_descend_until!(z) && (is_leaf = true; break)
+                !zipper_descend_until!(z) && (is_leaf=true; break)
             end
 
             if is_leaf
                 inner_alg =
                     (mask, ch, jump, val, path) -> begin
-                        sub_path = jumping ? view(path, max(1, length(path) - jump):length(path)) : UInt8[]
+                        sub_path = if jumping
+                            view(path, max(1, length(path) - jump):length(path))
+                        else
+                            UInt8[]
+                        end
                         alg_f(mask, ch, val, collect(sub_path))
                     end
                 cur_w = _cata_ascend_to_fork!(z, inner_alg, [], jumping)
@@ -269,17 +278,17 @@ function _cata_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) 
         end
 
         # All children of this frame processed
-        frame_idx   = length(stack)
-        sf          = pop!(stack)
+        frame_idx = length(stack)
+        sf = pop!(stack)
         child_start = length(children) - sf.child_cnt
 
         if frame_idx == 1
             # Root
             @assert zipper_at_root(z)
-            val        = zipper_val(z)
+            val = zipper_val(z)
             child_mask = zipper_child_mask(z)
-            sub_ch     = children[(child_start + 1):end]
-            w          = if jumping && sf.child_cnt == 1 && val === nothing
+            sub_ch = children[(child_start + 1):end]
+            w = if jumping && sf.child_cnt == 1 && val === nothing
                 pop!(children)
             else
                 alg_f(child_mask, sub_ch, val, UInt8[])
@@ -291,7 +300,11 @@ function _cata_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) 
         sub_ch = children[(child_start + 1):end]
         inner_alg =
             (mask, ch, jump, val2, path) -> begin
-                sub_path = jumping ? view(path, max(1, length(path) - jump):length(path)) : UInt8[]
+                sub_path = if jumping
+                    view(path, max(1, length(path) - jump):length(path))
+                else
+                    UInt8[]
+                end
                 alg_f(mask, ch, val2, collect(sub_path))
             end
         cur_w = _cata_ascend_to_fork!(z, inner_alg, sub_ch, jumping)
@@ -374,15 +387,18 @@ Hash the trie and all values using structural sharing.
 Mirrors `Catamorphism::hash`.
 """
 function map_hash(m::PathMap{V, A}) where {V, A}
-    cata_cached(m, (mask, children, val) -> begin
-        h = hash(mask.bits)
-        for c in children
-            ;
-            h = hash(h, UInt64(c isa Number ? c : objectid(c)));
+    cata_cached(
+        m,
+        (mask, children, val) -> begin
+            h = hash(mask.bits)
+            for c in children
+                ;
+                h = hash(h, UInt64(c isa Number ? c : objectid(c)));
+            end
+            val !== nothing && (h = hash(h, hash(val)))
+            h
         end
-        val !== nothing && (h = hash(h, hash(val)))
-        h
-    end)
+    )
 end
 
 # =====================================================================
@@ -408,19 +424,22 @@ end
 # When used_bytes == 0: path-independent, same cache behaviour as cata_cached.
 # When used_bytes == n: cache is specific to the last n bytes of the path.
 
-function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool) where {V, A}
+function _cata_hybrid_cached!(
+    z::ReadZipperCore{V, A}, alg_f::Function, jumping::Bool
+) where {V, A}
     zipper_reset!(z)
 
-    stack    = _CataFrame[]
+    stack = _CataFrame[]
     children = []
     # Cache: node_id → (W, path_suffix::Vector{UInt8})
     # suffix is empty when used_bytes == 0 (path-independent result)
-    cache    = Dict{UInt64, Tuple{Any, Vector{UInt8}}}()
+    cache = Dict{UInt64, Tuple{Any, Vector{UInt8}}}()
     used_ref = Ref(0)   # captures used_bytes from the most recent alg_f call
 
     # Wrapper: strips the (W, used) return, captures used into used_ref
     function inner_alg(mask, ch, jump_len, val, path)
-        sub_path = jumping ? view(path, max(1, length(path) - jump_len):length(path)) : UInt8[]
+        sub_path =
+            jumping ? view(path, max(1, length(path) - jump_len):length(path)) : UInt8[]
         (w, used) = alg_f(mask, ch, val, collect(sub_path), path)
         used_ref[] = used
         w
@@ -449,7 +468,8 @@ function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping:
                     cur_path = zipper_origin_path(z)
                     n = length(stored_suffix)
                     if length(cur_path) >= n &&
-                        view(cur_path, (length(cur_path) - n + 1):length(cur_path)) == stored_suffix
+                        view(cur_path, (length(cur_path) - n + 1):length(cur_path)) ==
+                       stored_suffix
                         push!(children, cached_w)
                         zipper_ascend_byte!(z)
                         continue
@@ -461,7 +481,7 @@ function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping:
             # Descend to leaf or fork
             is_leaf = false
             while zipper_child_count(z) < 2
-                !zipper_descend_until!(z) && (is_leaf = true; break)
+                !zipper_descend_until!(z) && (is_leaf=true; break)
             end
 
             if is_leaf
@@ -473,11 +493,13 @@ function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping:
                         UInt8[]
                     else
                         copy(
-                        view(
-                            zipper_origin_path(z),
-                            max(1, length(zipper_origin_path(z)) - used + 1):length(zipper_origin_path(z)),
-                        ),
-                    )
+                            view(
+                                zipper_origin_path(z),
+                                max(1, length(zipper_origin_path(z)) - used + 1):length(
+                                    zipper_origin_path(z)
+                                )
+                            )
+                        )
                     end
                     cache[nid] = (cur_w, suffix)
                 end
@@ -490,20 +512,20 @@ function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping:
         end
 
         # All children of this frame processed
-        frame_idx   = length(stack)
-        sf          = pop!(stack)
+        frame_idx = length(stack)
+        sf = pop!(stack)
         child_start = length(children) - sf.child_cnt
 
         if frame_idx == 1
             @assert zipper_at_root(z)
-            val        = zipper_val(z)
+            val = zipper_val(z)
             child_mask = zipper_child_mask(z)
-            sub_ch     = children[(child_start + 1):end]
-            w          = if jumping && sf.child_cnt == 1 && val === nothing
+            sub_ch = children[(child_start + 1):end]
+            w = if jumping && sf.child_cnt == 1 && val === nothing
                 pop!(children)
             else
                 used_ref[] = 0
-                full_path  = copy(zipper_origin_path(z))
+                full_path = copy(zipper_origin_path(z))
                 (w, _used) = alg_f(child_mask, sub_ch, val, UInt8[], full_path)
                 w
             end
@@ -523,11 +545,13 @@ function _cata_hybrid_cached!(z::ReadZipperCore{V, A}, alg_f::Function, jumping:
                 UInt8[]
             else
                 copy(
-                view(
-                    zipper_origin_path(z),
-                    max(1, length(zipper_origin_path(z)) - used + 1):length(zipper_origin_path(z)),
-                ),
-            )
+                    view(
+                        zipper_origin_path(z),
+                        max(1, length(zipper_origin_path(z)) - used + 1):length(
+                            zipper_origin_path(z)
+                        )
+                    )
+                )
             end
             cache[nid] = (cur_w, suffix)
         end
@@ -635,13 +659,14 @@ Accumulates child branches (byte + `W` result) for an anamorphism step.
 Mirrors `TrieBuilder<V, W, A>`.
 """
 mutable struct TrieBuilder{V, W, A <: Allocator}
-    child_mask  :: ByteMask
-    child_paths :: Vector{Vector{UInt8}}  # sub-paths > 1 byte
-    child_ws    :: Vector{Any}            # W or TrieNodeODRc (WOrNode)
-    alloc       :: A
+    child_mask::ByteMask
+    child_paths::Vector{Vector{UInt8}}  # sub-paths > 1 byte
+    child_ws::Vector{Any}            # W or TrieNodeODRc (WOrNode)
+    alloc::A
 end
 
-TrieBuilder{V, W}(alloc::A) where {V, W, A} = TrieBuilder{V, W, A}(ByteMask(), Vector{UInt8}[], Any[], alloc)
+TrieBuilder{V, W}(alloc::A) where {V, W, A} =
+    TrieBuilder{V, W, A}(ByteMask(), Vector{UInt8}[], Any[], alloc)
 TrieBuilder{V, W}() where {V, W} = TrieBuilder{V, W}(GlobalAlloc())
 
 """
@@ -674,7 +699,9 @@ tb_child_mask(tb::TrieBuilder) = tb.child_mask
 """
 Graft a read zipper's focus at `byte`.
 """
-function tb_graft_at_byte!(tb::TrieBuilder{V, W, A}, byte::UInt8, rc::TrieNodeODRc{V, A}) where {V, W, A}
+function tb_graft_at_byte!(
+    tb::TrieBuilder{V, W, A}, byte::UInt8, rc::TrieNodeODRc{V, A}
+) where {V, W, A}
     tb.child_mask = set(tb.child_mask, byte)
     push!(tb.child_ws, rc)
 end

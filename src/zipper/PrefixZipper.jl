@@ -23,22 +23,22 @@ path), or in the source zipper.  Mirrors `PrefixPos` in prefix_zipper.rs.
 """
 @enum PrefixPosTag begin
     PREFIX_POS_PREFIX = 1   # valid bytes into prefix
-    PREFIX_POS_OFF    = 2   # descended off prefix (invalid path)
+    PREFIX_POS_OFF = 2   # descended off prefix (invalid path)
     PREFIX_POS_SOURCE = 3   # prefix fully traversed; cursor in source
 end
 
 struct PrefixPos
-    tag     :: PrefixPosTag
-    valid   :: Int   # bytes matched in prefix (Prefix / PrefixOff)
-    invalid :: Int   # bytes beyond valid prefix (PrefixOff only)
+    tag::PrefixPosTag
+    valid::Int   # bytes matched in prefix (Prefix / PrefixOff)
+    invalid::Int   # bytes beyond valid prefix (PrefixOff only)
 end
 
-PrefixPos_prefix(valid::Int)  = PrefixPos(PREFIX_POS_PREFIX, valid, 0)
+PrefixPos_prefix(valid::Int) = PrefixPos(PREFIX_POS_PREFIX, valid, 0)
 PrefixPos_off(v::Int, i::Int) = PrefixPos(PREFIX_POS_OFF, v, i)
-PrefixPos_source()            = PrefixPos(PREFIX_POS_SOURCE, 0, 0)
+PrefixPos_source() = PrefixPos(PREFIX_POS_SOURCE, 0, 0)
 
 _pos_is_invalid(p::PrefixPos) = p.tag == PREFIX_POS_OFF
-_pos_is_source(p::PrefixPos)  = p.tag == PREFIX_POS_SOURCE
+_pos_is_source(p::PrefixPos) = p.tag == PREFIX_POS_SOURCE
 
 function _pos_prefixed_depth(p::PrefixPos)
     p.tag == PREFIX_POS_PREFIX && return p.valid
@@ -57,11 +57,11 @@ Wraps source zipper `Z` and prepends `prefix` bytes to its path space.
 Mirrors `PrefixZipper<'prefix, Z>`.
 """
 mutable struct PrefixZipper{Z}
-    path         :: Vector{UInt8}   # full absolute path (origin_depth prefix + relative)
-    source       :: Z
-    prefix       :: Vector{UInt8}   # the full prefix bytes
-    origin_depth :: Int             # bytes of prefix that belong to the root prefix path
-    position     :: PrefixPos
+    path::Vector{UInt8}   # full absolute path (origin_depth prefix + relative)
+    source::Z
+    prefix::Vector{UInt8}   # the full prefix bytes
+    origin_depth::Int             # bytes of prefix that belong to the root prefix path
+    position::PrefixPos
 end
 
 """
@@ -157,7 +157,8 @@ function _pz_ascend_until_n!(pz::PrefixZipper, val::Bool)::Union{Nothing, Int}
 
     if _pos_is_source(pz.position)
         len_before = length(zipper_path(pz.source))
-        good = val ? zipper_ascend_until!(pz.source) : zipper_ascend_until_branch!(pz.source)
+        good =
+            val ? zipper_ascend_until!(pz.source) : zipper_ascend_until_branch!(pz.source)
         if good && ((val && zipper_is_val(pz.source)) || zipper_child_count(pz.source) > 1)
             len_after = length(zipper_path(pz.source))
             return len_before - len_after
@@ -297,7 +298,7 @@ function pz_descend_until!(pz::PrefixZipper)
     true
 end
 
-function pz_ascend!(pz::PrefixZipper, steps::Int = 1)
+function pz_ascend!(pz::PrefixZipper, steps::Int=1)
     remaining = _pz_ascend_n!(pz, steps)
     ascended = steps - remaining
     resize!(pz.path, length(pz.path) - ascended)

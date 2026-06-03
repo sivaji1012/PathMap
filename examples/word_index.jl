@@ -16,7 +16,7 @@ using PathMap
 # ── Build a word → count map from a string corpus ─────────────────────
 function word_frequency(text::String)
     m = PathMap.PathMap{Int}()
-    for word in split(lowercase(text), r"\W+"; keepempty = false)
+    for word in split(lowercase(text), r"\W+"; keepempty=false)
         key = Vector{UInt8}(word)
         existing = get_val_at(m, key)
         set_val_at!(m, key, existing === nothing ? 1 : existing + 1)
@@ -39,14 +39,14 @@ println("Unique words: ", val_count(freq))
 println("\nAll words (alphabetical, DFS order):")
 rz = read_zipper(freq)
 while zipper_to_next_val!(rz)
-    word  = String(copy(zipper_path(rz)))
+    word = String(copy(zipper_path(rz)))
     count = zipper_val(rz)
     count > 1 && println("  $word => $count")
 end
 
 # ── Merge two corpora with SumPolicy ──────────────────────────────────
 corpus2 = "to be or not to be again and again"
-freq2   = word_frequency(corpus2)
+freq2 = word_frequency(corpus2)
 
 println("\nAfter merging second corpus (SumPolicy):")
 merged = pjoin_policy(freq, freq2, SumPolicy())
@@ -56,7 +56,8 @@ println("  'the' => ", get_val_at(merged, b"the"))
 
 # ── Structural statistics via cata_cached ─────────────────────────────
 total_occurrences = cata_cached(
-    merged, (mask, children, val) -> (val !== nothing ? val : 0) + reduce(+, children; init = 0)
+    merged,
+    (mask, children, val) -> (val !== nothing ? val : 0) + reduce(+, children; init=0)
 )
 
 println("\nTotal word occurrences: ", total_occurrences)

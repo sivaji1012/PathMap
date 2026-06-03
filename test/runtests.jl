@@ -84,7 +84,11 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         for i in 1:5
             set_val_at!(m, Vector{UInt8}("k$i"), i)
         end
-        total = cata_cached(m, (mask, children, val) -> (val !== nothing ? val : 0) + reduce(+, children, init = 0))
+        total = cata_cached(
+            m,
+            (mask, children, val) ->
+                (val !== nothing ? val : 0) + reduce(+, children, init=0)
+        )
         @test total == 15   # 1+2+3+4+5
 
         h = map_hash(m)
@@ -151,7 +155,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         set_val_at!(m, b"gamma", UInt64(7))
 
         tree_vec = act_from_zipper(m, v -> v)
-        tmpfile  = tempname() * ".act"
+        tmpfile = tempname() * ".act"
         act_save(tree_vec, tmpfile)
 
         tree_mmap = act_open_mmap(tmpfile)
@@ -173,7 +177,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         z = act_read_zipper(tree_mmap)
         @test act_val_count(z) == 3
 
-        rm(tmpfile; force = true)
+        rm(tmpfile; force=true)
     end
 
     @testset "remove_val_at! with prune" begin
@@ -217,7 +221,11 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
         result = deepcopy(a)
         wz = write_zipper(result)
-        src_anr = b.root === nothing ? ANRNone{Int, GlobalAlloc}() : ANRBorrowedRc{Int, GlobalAlloc}(b.root)
+        src_anr = if b.root === nothing
+            ANRNone{Int, GlobalAlloc}()
+        else
+            ANRBorrowedRc{Int, GlobalAlloc}(b.root)
+        end
         status = wz_subtract_into!(wz, src_anr, true)
 
         @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_NONE
@@ -239,7 +247,11 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
 
         result = deepcopy(a)
         wz = write_zipper(result)
-        src_anr = b.root === nothing ? ANRNone{Bool, GlobalAlloc}() : ANRBorrowedRc{Bool, GlobalAlloc}(b.root)
+        src_anr = if b.root === nothing
+            ANRNone{Bool, GlobalAlloc}()
+        else
+            ANRBorrowedRc{Bool, GlobalAlloc}(b.root)
+        end
         status = wz_meet_into!(wz, src_anr, true)
 
         @test status == ALG_STATUS_ELEMENT || status == ALG_STATUS_IDENTITY
@@ -272,14 +284,14 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         # iteration to a root ProductZipper over the same leaves — for BOTH
         # branching prefixes (node boundary) and single-path prefixes
         # (mid-compressed-edge, which the naive tr_get_focus_rc path dropped).
-        drive(prz)           = begin
+        drive(prz) = begin
             out = String[]
             while pz_to_next_val!(prz)
                 push!(out, String(copy(collect(pz_path(prz)))))
             end
             sort!(out)
         end
-        root_pz(m, n)        = ProductZipper(read_zipper(m), [read_zipper(m) for _ in 2:n])
+        root_pz(m, n) = ProductZipper(read_zipper(m), [read_zipper(m) for _ in 2:n])
         anchored_pz(m, p, n) = ProductZipper(m, Vector{UInt8}(p), n)
 
         # (1) branching prefix: {foo,bar} under "a/"  vs  flat {foo,bar}
@@ -291,13 +303,16 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         set_val_at!(preAB, b"a/bar", UNIT_VAL)
         @test drive(anchored_pz(preAB, "a/", 2)) == drive(root_pz(flatAB, 2))
         # and no result carries the raw prefix byte 'a'
-        @test !any(s -> !isempty(s) && codeunits(s)[1] == UInt8('a'), drive(anchored_pz(preAB, "a/", 2)))
+        @test !any(
+            s -> !isempty(s) && codeunits(s)[1] == UInt8('a'),
+            drive(anchored_pz(preAB, "a/", 2))
+        )
 
         # (2) single-path prefix: {foo} under "b/" vs flat {foo}
         #     (mid-compressed-edge — the case that returned empty pre-fix)
         flatC = PM{UnitVal}();
         set_val_at!(flatC, b"foo", UNIT_VAL)
-        preC  = PM{UnitVal}();
+        preC = PM{UnitVal}();
         set_val_at!(preC, b"b/foo", UNIT_VAL)
         @test drive(anchored_pz(preC, "b/", 2)) == drive(root_pz(flatC, 2))
         @test !isempty(drive(anchored_pz(preC, "b/", 2)))   # not silently empty
@@ -585,8 +600,8 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
             set_val_at!(m, k, 1)
         end
         root = m.root
-        _, child       = PathMap.node_child_iter_start(PathMap.as_tagged(root))
-        cl             = clone_self(PathMap.as_tagged(root))   # shallow clone of the node
+        _, child = PathMap.node_child_iter_start(PathMap.as_tagged(root))
+        cl = clone_self(PathMap.as_tagged(root))   # shallow clone of the node
         _, child_clone = PathMap.node_child_iter_start(PathMap.as_tagged(cl))
         @test child !== nothing && child_clone !== nothing
         @test PathMap.shared_node_id(child) == PathMap.shared_node_id(child_clone)  # SHARED
@@ -605,10 +620,10 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         end
         root = m.root
         @test PathMap.node_tag(PathMap.as_tagged(root)) in
-              (PathMap.DENSE_BYTE_NODE_TAG, PathMap.CELL_BYTE_NODE_TAG)
+            (PathMap.DENSE_BYTE_NODE_TAG, PathMap.CELL_BYTE_NODE_TAG)
         cl = clone_self(PathMap.as_tagged(root))   # deepcopy_bn — threw MethodError pre-fix
         @test cl !== nothing
-        _, child  = PathMap.node_child_iter_start(PathMap.as_tagged(root))
+        _, child = PathMap.node_child_iter_start(PathMap.as_tagged(root))
         _, childc = PathMap.node_child_iter_start(PathMap.as_tagged(cl))
         @test child !== nothing && childc !== nothing
         @test PathMap.shared_node_id(child) == PathMap.shared_node_id(childc)   # SHARED
@@ -623,7 +638,9 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
         set_val_at!(m, b"Sab", 1)
         set_val_at!(m, b"Scd", 2)
         src_anr = PathMap.tr_get_focus_anr(PathMap.trie_ref_at_path(m, b"S"))
-        wz = write_zipper(m); wz_descend_to!(wz, b"D"); PathMap.wz_graft!(wz, src_anr)
+        wz = write_zipper(m);
+        wz_descend_to!(wz, b"D");
+        PathMap.wz_graft!(wz, src_anr)
         @test get_val_at(m, b"Dab") == 1 && get_val_at(m, b"Dcd") == 2   # graft copied
         set_val_at!(m, b"Dab", 99)                                       # mutate shared graft
         set_val_at!(m, b"Def", 7)
@@ -670,7 +687,7 @@ const PM = PathMap.PathMap   # PathMap module and PathMap type share the same na
             set_val_at!(m, b"beta", 2)
             root = m.root
             M = 500
-            tasks  = [Threads.@spawn copy(root) for _ in 1:M]
+            tasks = [Threads.@spawn copy(root) for _ in 1:M]
             copies = fetch.(tasks)
             @test refcount(root) == M + 1                       # exact: no lost increments
             @test all(c -> ptr_eq(root, c), copies)             # all share the one node

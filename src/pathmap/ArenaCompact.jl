@@ -16,13 +16,13 @@ Supports in-memory (Vector{UInt8}) and memory-mapped file backends.
 # Constants
 # =====================================================================
 
-const ACT_MAGIC       = b"ACTree03"
-const ACT_MAGIC_LEN   = 8
+const ACT_MAGIC = b"ACTree03"
+const ACT_MAGIC_LEN = 8
 const ACT_ROOT_OFFSET = ACT_MAGIC_LEN           # offset of u64 root_id
 const ACT_ARENA_START = ACT_MAGIC_LEN + 8       # offset where nodes begin
 
-const ACT_LINE_FLAG   = UInt8(0x80)
-const ACT_VALUE_FLAG  = UInt8(0x40)
+const ACT_LINE_FLAG = UInt8(0x80)
+const ACT_VALUE_FLAG = UInt8(0x40)
 const ACT_VARINT_BIAS = UInt8(0xFF - 8)         # = 247
 
 # =====================================================================
@@ -44,16 +44,16 @@ const ACT_INVALID_LINE = ACT_LineId(typemax(UInt64))
 # =====================================================================
 
 struct ACT_NodeBranch
-    bytemask    :: ByteMask
-    first_child :: Union{Nothing, ACT_NodeId}
-    value       :: Union{Nothing, UInt64}
+    bytemask::ByteMask
+    first_child::Union{Nothing, ACT_NodeId}
+    value::Union{Nothing, UInt64}
 end
 ACT_NodeBranch() = ACT_NodeBranch(ByteMask(), nothing, nothing)
 
 struct ACT_NodeLine
-    path  :: ACT_LineId
-    value :: Union{Nothing, UInt64}
-    child :: Union{Nothing, ACT_NodeId}
+    path::ACT_LineId
+    value::Union{Nothing, UInt64}
+    child::Union{Nothing, ACT_NodeId}
 end
 ACT_NodeLine() = ACT_NodeLine(ACT_INVALID_LINE, nothing, nothing)
 
@@ -76,7 +76,7 @@ end
 
 Read ACTree03 branchless varint from `data` starting at 1-based `offset`.
 """
-function act_read_varint(data::AbstractVector{UInt8}, offset::Int = 1)
+function act_read_varint(data::AbstractVector{UInt8}, offset::Int=1)
     first = data[offset]
     if first <= ACT_VARINT_BIAS
         return (UInt64(first), 1)
@@ -117,15 +117,15 @@ end
 Read a node from `data` at 1-based offset `off`. Returns (node, bytes_consumed).
 """
 function act_read_node(data::AbstractVector{UInt8}, node_id::ACT_NodeId)
-    off  = Int(node_id.v) + 1   # 1-based
+    off = Int(node_id.v) + 1   # 1-based
     head = data[off]
-    pos  = 2
+    pos = 2
 
     if (head & ACT_LINE_FLAG) == 0
         # Branch node
         has_value = (head & ACT_VALUE_FLAG) != 0
         nchildren = Int(head & 0x3f)
-        value     = nothing
+        value = nothing
         if has_value
             v, n = act_read_varint(data, off + pos - 1)
             value = v;
@@ -235,7 +235,11 @@ function act_write_line!(buf::Vector{UInt8}, node::ACT_NodeLine, pos::UInt64)
 end
 
 function act_write_node!(buf::Vector{UInt8}, node::ACTNode, pos::UInt64)
-    node isa ACT_NodeBranch ? act_write_branch!(buf, node, pos) : act_write_line!(buf, node, pos)
+    if node isa ACT_NodeBranch
+        act_write_branch!(buf, node, pos)
+    else
+        act_write_line!(buf, node, pos)
+    end
 end
 
 # =====================================================================
@@ -250,10 +254,10 @@ memory-mapped byte slice.  Mirrors `ArenaCompactTree<Vec<u8>>` and
 `ArenaCompactTree<Mmap>` in arena_compact.rs.
 """
 mutable struct ArenaCompactTree
-    data     :: Vector{UInt8}   # raw bytes (mutable for Vec; copy for Mmap)
-    position :: UInt64          # write cursor (past last written byte)
-    line_map :: Dict{UInt64, ACT_LineId}   # hash → LineId cache
-    last_val :: Ref{UInt64}     # cached last-read value (replaces Cell<u64>)
+    data::Vector{UInt8}   # raw bytes (mutable for Vec; copy for Mmap)
+    position::UInt64          # write cursor (past last written byte)
+    line_map::Dict{UInt64, ACT_LineId}   # hash → LineId cache
+    last_val::Ref{UInt64}     # cached last-read value (replaces Cell<u64>)
 end
 
 function ArenaCompactTree()
@@ -371,7 +375,8 @@ end
 Helper: test if `pv[i..]` starts with `prefix`.
 """
 function starts_with(pv::AbstractVector{UInt8}, start::Int, prefix::AbstractVector{UInt8})
-    length(pv) - start + 1 >= length(prefix) && @view(pv[start:(start + length(prefix) - 1)]) == prefix
+    length(pv) - start + 1 >= length(prefix) &&
+        @view(pv[start:(start + length(prefix) - 1)]) == prefix
 end
 
 # =====================================================================
@@ -394,7 +399,9 @@ function act_from_zipper(m::PathMap{V, A}, map_val::Function) where {V, A}
                 id = act_push_node!(tree, child)
                 first_child === nothing && (first_child = id)
             end
-            node = ACT_NodeBranch(mask, first_child, val !== nothing ? map_val(val) : nothing)
+            node = ACT_NodeBranch(
+                mask, first_child, val !== nothing ? map_val(val) : nothing
+            )
             if jump == 0
                 return node
             end
@@ -402,11 +409,15 @@ function act_from_zipper(m::PathMap{V, A}, map_val::Function) where {V, A}
             line_path = view(path, (length(path) - jump + 1):length(path))
             line = ACT_NodeLine(
                 act_add_path!(tree, collect(UInt8, line_path)),
-                !isempty(children) ? nothing : (val !== nothing ? map_val(val) : nothing),
-                !isempty(children) ? Some_NodeId(act_push_node!(tree, node)) : nothing,
+                if !isempty(children)
+                    nothing
+                else
+                    (val !== nothing ? map_val(val) : nothing)
+                end,
+                !isempty(children) ? Some_NodeId(act_push_node!(tree, node)) : nothing
             )
             line
-        end,
+        end
     )
     act_set_root!(tree, root)
     act_finalize!(tree)
@@ -436,7 +447,9 @@ Mirrors `ArenaCompactTree::open_mmap` (memory-mapped semantics optional in Julia
 function act_open(path::AbstractString)
     data = read(path)
     @assert data[1:ACT_MAGIC_LEN] == ACT_MAGIC "Invalid ACTree magic"
-    tree = ArenaCompactTree(data, UInt64(length(data)), Dict{UInt64, ACT_LineId}(), Ref(UInt64(0)))
+    tree = ArenaCompactTree(
+        data, UInt64(length(data)), Dict{UInt64, ACT_LineId}(), Ref(UInt64(0))
+    )
     tree
 end
 
@@ -470,11 +483,11 @@ end
 # =====================================================================
 
 mutable struct _ACTFrame
-    node_id     :: ACT_NodeId
-    child_count :: Int
-    child_index :: Int
-    next_id     :: Union{Nothing, ACT_NodeId}
-    node_depth  :: Int   # bytes consumed within current line node
+    node_id::ACT_NodeId
+    child_count::Int
+    child_index::Int
+    next_id::Union{Nothing, ACT_NodeId}
+    node_depth::Int   # bytes consumed within current line node
 end
 
 function _ACTFrame(node::ACTNode, node_id::ACT_NodeId)
@@ -489,13 +502,13 @@ Read-only zipper over an `ArenaCompactTree`.
 Mirrors `ACTZipper<Storage, Value>`.
 """
 mutable struct ACTZipper
-    tree          :: ArenaCompactTree
-    cur_node      :: ACTNode
-    stack         :: Vector{_ACTFrame}
-    path          :: Vector{UInt8}
-    origin_depth  :: Int
-    origin_ndepth :: Int     # origin_node_depth
-    invalid       :: Int
+    tree::ArenaCompactTree
+    cur_node::ACTNode
+    stack::Vector{_ACTFrame}
+    path::Vector{UInt8}
+    origin_depth::Int
+    origin_ndepth::Int     # origin_node_depth
+    invalid::Int
 end
 
 function ACTZipper(tree::ArenaCompactTree)
@@ -505,7 +518,7 @@ function ACTZipper(tree::ArenaCompactTree)
 end
 
 function act_zipper_with_root_here!(z::ACTZipper)
-    z.origin_depth  = length(z.path)
+    z.origin_depth = length(z.path)
     z.origin_ndepth = z.stack[1].node_depth
     if length(z.stack) > 1
         z.stack[1] = z.stack[end]
@@ -541,7 +554,7 @@ read_zipper_at_path(tree::ArenaCompactTree, path) = act_read_zipper_at_path(tree
 # =====================================================================
 
 act_at_root(z::ACTZipper) = length(z.path) <= z.origin_depth
-act_path(z::ACTZipper)    = view(z.path, (z.origin_depth + 1):length(z.path))
+act_path(z::ACTZipper) = view(z.path, (z.origin_depth + 1):length(z.path))
 
 function act_path_exists(z::ACTZipper)
     z.invalid == 0
@@ -639,12 +652,13 @@ function _act_descend_cond!(z::ACTZipper, path::AbstractVector{UInt8}, on_val::B
             test_bit(cur.bytemask, path[i]) || break
             idx = Int(index_of(cur.bytemask, path[i]))
             frame = z.stack[end]
-            child_id, child_next = if frame.next_id !== nothing && frame.child_index + 1 == idx
-                (frame.next_id, nothing)
-            else
-                nd = act_nth_node(z.tree, cur.first_child, idx)
-                (nd[2], nd[3])
-            end
+            child_id, child_next =
+                if frame.next_id !== nothing && frame.child_index + 1 == idx
+                    (frame.next_id, nothing)
+                else
+                    nd = act_nth_node(z.tree, cur.first_child, idx)
+                    (nd[2], nd[3])
+                end
             frame.child_index = idx
             frame.next_id = child_next
             child_node = act_get_node(z.tree, child_id)[1]
@@ -687,7 +701,7 @@ function act_descend_indexed_byte!(z::ACTZipper, idx::Int)
     if cur isa ACT_NodeLine
         frame = z.stack[end]
         lpath = act_get_line(z.tree, cur.path)
-        rest  = view(lpath, (frame.node_depth + 1):length(lpath))
+        rest = view(lpath, (frame.node_depth + 1):length(lpath))
         (idx != 0 || isempty(rest)) && return false
         push!(z.path, rest[1])
         if length(rest) == 1 && cur.child !== nothing
@@ -733,7 +747,7 @@ function act_descend_until!(z::ACTZipper)
             hack = cur.child !== nothing ? 1 : 0
             frame.node_depth += length(rest) - hack
             append!(z.path, rest)
-            cur.value !== nothing && (descended = true; break)
+            cur.value !== nothing && (descended=true; break)
             cur.child !== nothing || break
             child_node = act_get_node(z.tree, cur.child)[1]
             push!(z.stack, _ACTFrame(child_node, cur.child))
@@ -746,14 +760,14 @@ function act_descend_until!(z::ACTZipper)
             child_node = act_get_node(z.tree, child_id)[1]
             push!(z.stack, _ACTFrame(child_node, child_id))
             z.cur_node = child_node
-            cur.value !== nothing && (descended = true; break)
+            cur.value !== nothing && (descended=true; break)
         end
         descended = true
     end
     descended
 end
 
-function act_ascend!(z::ACTZipper, steps::Int = 1)
+function act_ascend!(z::ACTZipper, steps::Int=1)
     # First clear any invalid bytes
     if z.invalid > 0
         cut = min(z.invalid, steps, max(0, length(z.path) - z.origin_depth))
@@ -849,7 +863,15 @@ function act_to_next_val!(z::ACTZipper)
 end
 
 function Base.copy(z::ACTZipper)
-    ACTZipper(z.tree, z.cur_node, copy(z.stack), copy(z.path), z.origin_depth, z.origin_ndepth, z.invalid)
+    ACTZipper(
+        z.tree,
+        z.cur_node,
+        copy(z.stack),
+        copy(z.path),
+        z.origin_depth,
+        z.origin_ndepth,
+        z.invalid
+    )
 end
 
 act_fork!(z::ACTZipper) = act_zipper_with_root_here!(copy(z))
@@ -870,26 +892,26 @@ end
 # Required for PrefixZipper{ACTZipper} and ProductZipperG factor dispatch.
 # =====================================================================
 
-zipper_reset!(z::ACTZipper)                     = act_reset!(z)
-zipper_path(z::ACTZipper)                       = act_path(z)
-zipper_path_exists(z::ACTZipper)                = act_path_exists(z)
-zipper_is_val(z::ACTZipper)                     = act_is_val(z)
-zipper_child_count(z::ACTZipper)                = act_child_count(z)
-zipper_child_mask(z::ACTZipper)                 = act_child_mask(z)
-zipper_val_count(z::ACTZipper)                  = act_val_count(z)
-zipper_at_root(z::ACTZipper)                    = act_at_root(z)
-zipper_descend_to!(z::ACTZipper, p)             = act_descend_to!(z, p)
-zipper_descend_to_existing!(z::ACTZipper, p)    = act_descend_to_existing!(z, p)
+zipper_reset!(z::ACTZipper) = act_reset!(z)
+zipper_path(z::ACTZipper) = act_path(z)
+zipper_path_exists(z::ACTZipper) = act_path_exists(z)
+zipper_is_val(z::ACTZipper) = act_is_val(z)
+zipper_child_count(z::ACTZipper) = act_child_count(z)
+zipper_child_mask(z::ACTZipper) = act_child_mask(z)
+zipper_val_count(z::ACTZipper) = act_val_count(z)
+zipper_at_root(z::ACTZipper) = act_at_root(z)
+zipper_descend_to!(z::ACTZipper, p) = act_descend_to!(z, p)
+zipper_descend_to_existing!(z::ACTZipper, p) = act_descend_to_existing!(z, p)
 zipper_descend_to_byte!(z::ACTZipper, b::UInt8) = act_descend_to_byte!(z, b)
-zipper_descend_first_byte!(z::ACTZipper)        = act_descend_first_byte!(z)
-zipper_descend_until!(z::ACTZipper)             = act_descend_until!(z)
-zipper_ascend!(z::ACTZipper, n::Int = 1)        = (act_ascend!(z, n); n > 0)
-zipper_ascend_byte!(z::ACTZipper)               = act_ascend_byte!(z)
-zipper_ascend_until!(z::ACTZipper)              = act_ascend_until!(z)
-zipper_ascend_until_branch!(z::ACTZipper)       = act_ascend_until_branch!(z)
-zipper_to_next_sibling_byte!(z::ACTZipper)      = act_to_next_sibling_byte!(z)
-zipper_to_prev_sibling_byte!(z::ACTZipper)      = act_to_prev_sibling_byte!(z)
-zipper_to_next_val!(z::ACTZipper)               = act_to_next_val!(z)
+zipper_descend_first_byte!(z::ACTZipper) = act_descend_first_byte!(z)
+zipper_descend_until!(z::ACTZipper) = act_descend_until!(z)
+zipper_ascend!(z::ACTZipper, n::Int=1) = (act_ascend!(z, n); n > 0)
+zipper_ascend_byte!(z::ACTZipper) = act_ascend_byte!(z)
+zipper_ascend_until!(z::ACTZipper) = act_ascend_until!(z)
+zipper_ascend_until_branch!(z::ACTZipper) = act_ascend_until_branch!(z)
+zipper_to_next_sibling_byte!(z::ACTZipper) = act_to_next_sibling_byte!(z)
+zipper_to_prev_sibling_byte!(z::ACTZipper) = act_to_prev_sibling_byte!(z)
+zipper_to_next_val!(z::ACTZipper) = act_to_next_val!(z)
 
 # =====================================================================
 # _zpg_* dispatch so ACTZipper works as a ProductZipperG factor.
@@ -897,26 +919,26 @@ zipper_to_next_val!(z::ACTZipper)               = act_to_next_val!(z)
 # themselves are defined earlier in zipper/ProductZipperG.jl.
 # =====================================================================
 
-_zpg_path_exists(z::ACTZipper)             = act_path_exists(z)
-_zpg_is_val(z::ACTZipper)                  = act_is_val(z)
-_zpg_child_count(z::ACTZipper)             = act_child_count(z)
-_zpg_child_mask(z::ACTZipper)              = act_child_mask(z)
-_zpg_path(z::ACTZipper)                    = act_path(z)
-_zpg_origin_path(z::ACTZipper)             = z.path
-_zpg_root_prefix_len(z::ACTZipper)         = z.origin_depth
-_zpg_at_root(z::ACTZipper)                 = act_at_root(z)
-_zpg_reset!(z::ACTZipper)                  = act_reset!(z)
+_zpg_path_exists(z::ACTZipper) = act_path_exists(z)
+_zpg_is_val(z::ACTZipper) = act_is_val(z)
+_zpg_child_count(z::ACTZipper) = act_child_count(z)
+_zpg_child_mask(z::ACTZipper) = act_child_mask(z)
+_zpg_path(z::ACTZipper) = act_path(z)
+_zpg_origin_path(z::ACTZipper) = z.path
+_zpg_root_prefix_len(z::ACTZipper) = z.origin_depth
+_zpg_at_root(z::ACTZipper) = act_at_root(z)
+_zpg_reset!(z::ACTZipper) = act_reset!(z)
 _zpg_descend_to_existing!(z::ACTZipper, p) = act_descend_to_existing!(z, p)
-_zpg_descend_to!(z::ACTZipper, p)          = act_descend_to!(z, p)
-_zpg_descend_to_byte!(z::ACTZipper, b)     = act_descend_to_byte!(z, b)
-_zpg_descend_first_byte!(z::ACTZipper)     = act_descend_first_byte!(z)
-_zpg_descend_until!(z::ACTZipper)          = act_descend_until!(z)
-_zpg_ascend_byte!(z::ACTZipper)            = act_ascend_byte!(z)
-_zpg_ascend!(z::ACTZipper, n)              = (act_ascend!(z, n); true)
-_zpg_ascend_until!(z::ACTZipper)           = act_ascend_until!(z)
-_zpg_ascend_until_branch!(z::ACTZipper)    = act_ascend_until_branch!(z)
-_zpg_to_next_sibling_byte!(z::ACTZipper)   = act_to_next_sibling_byte!(z)
-_zpg_to_next_val!(z::ACTZipper)            = act_to_next_val!(z)
+_zpg_descend_to!(z::ACTZipper, p) = act_descend_to!(z, p)
+_zpg_descend_to_byte!(z::ACTZipper, b) = act_descend_to_byte!(z, b)
+_zpg_descend_first_byte!(z::ACTZipper) = act_descend_first_byte!(z)
+_zpg_descend_until!(z::ACTZipper) = act_descend_until!(z)
+_zpg_ascend_byte!(z::ACTZipper) = act_ascend_byte!(z)
+_zpg_ascend!(z::ACTZipper, n) = (act_ascend!(z, n); true)
+_zpg_ascend_until!(z::ACTZipper) = act_ascend_until!(z)
+_zpg_ascend_until_branch!(z::ACTZipper) = act_ascend_until_branch!(z)
+_zpg_to_next_sibling_byte!(z::ACTZipper) = act_to_next_sibling_byte!(z)
+_zpg_to_next_val!(z::ACTZipper) = act_to_next_val!(z)
 
 # =====================================================================
 # Exports

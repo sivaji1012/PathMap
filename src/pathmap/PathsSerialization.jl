@@ -59,42 +59,61 @@ const ZLIB_VERSION = "1.2.11"   # version string passed to deflateInit2_
 
 if Sys.iswindows()
     mutable struct ZStream
-        next_in   :: Ptr{UInt8}
-        avail_in  :: UInt32
-        total_in  :: UInt32
-        next_out  :: Ptr{UInt8}
-        avail_out :: UInt32
-        total_out :: UInt32
-        msg       :: Ptr{UInt8}
-        state     :: Ptr{Cvoid}
-        zalloc    :: Ptr{Cvoid}
-        zfree     :: Ptr{Cvoid}
-        opaque    :: Ptr{Cvoid}
-        data_type :: Int32
-        adler     :: UInt32
-        reserved  :: UInt32
-        ZStream() = new(C_NULL, 0, 0, C_NULL, 0, 0, C_NULL, C_NULL, C_NULL, C_NULL, C_NULL, 0, 0, 0)
+        next_in::Ptr{UInt8}
+        avail_in::UInt32
+        total_in::UInt32
+        next_out::Ptr{UInt8}
+        avail_out::UInt32
+        total_out::UInt32
+        msg::Ptr{UInt8}
+        state::Ptr{Cvoid}
+        zalloc::Ptr{Cvoid}
+        zfree::Ptr{Cvoid}
+        opaque::Ptr{Cvoid}
+        data_type::Int32
+        adler::UInt32
+        reserved::UInt32
+        ZStream() =
+            new(C_NULL, 0, 0, C_NULL, 0, 0, C_NULL, C_NULL, C_NULL, C_NULL, C_NULL, 0, 0, 0)
     end
 else
     mutable struct ZStream
-        next_in   :: Ptr{UInt8}
-        avail_in  :: UInt32
-        _pad1     :: UInt32
-        total_in  :: UInt64
-        next_out  :: Ptr{UInt8}
-        avail_out :: UInt32
-        _pad2     :: UInt32
-        total_out :: UInt64
-        msg       :: Ptr{UInt8}
-        state     :: Ptr{Cvoid}
-        zalloc    :: Ptr{Cvoid}
-        zfree     :: Ptr{Cvoid}
-        opaque    :: Ptr{Cvoid}
-        data_type :: Int32
-        _pad3     :: Int32
-        adler     :: UInt64
-        reserved  :: UInt64
-        ZStream() = new(C_NULL, 0, 0, 0, C_NULL, 0, 0, 0, C_NULL, C_NULL, C_NULL, C_NULL, C_NULL, 0, 0, 0, 0)
+        next_in::Ptr{UInt8}
+        avail_in::UInt32
+        _pad1::UInt32
+        total_in::UInt64
+        next_out::Ptr{UInt8}
+        avail_out::UInt32
+        _pad2::UInt32
+        total_out::UInt64
+        msg::Ptr{UInt8}
+        state::Ptr{Cvoid}
+        zalloc::Ptr{Cvoid}
+        zfree::Ptr{Cvoid}
+        opaque::Ptr{Cvoid}
+        data_type::Int32
+        _pad3::Int32
+        adler::UInt64
+        reserved::UInt64
+        ZStream() = new(
+            C_NULL,
+            0,
+            0,
+            0,
+            C_NULL,
+            0,
+            0,
+            0,
+            C_NULL,
+            C_NULL,
+            C_NULL,
+            C_NULL,
+            C_NULL,
+            0,
+            0,
+            0,
+            0
+        )
     end
 end
 
@@ -103,22 +122,22 @@ end
 # =====================================================================
 
 struct SerializationStats
-    bytes_out  :: Int
-    bytes_in   :: Int
-    path_count :: Int
+    bytes_out::Int
+    bytes_in::Int
+    path_count::Int
 end
 
 struct DeserializationStats
-    bytes_in   :: Int
-    bytes_out  :: Int
-    path_count :: Int
+    bytes_in::Int
+    bytes_out::Int
+    path_count::Int
 end
 
 # =====================================================================
 # zlib wrapper helpers
 # =====================================================================
 
-function _deflate_init!(strm::ZStream, level::Int = 7)
+function _deflate_init!(strm::ZStream, level::Int=7)
     ret = GC.@preserve strm ccall(
         (:deflateInit2_, Zlib_jll.libz),
         Cint,
@@ -130,23 +149,33 @@ function _deflate_init!(strm::ZStream, level::Int = 7)
         Cint(8),   # memLevel
         Cint(0),   # Z_DEFAULT_STRATEGY
         pointer(ZLIB_VERSION),
-        sizeof(ZStream),
+        sizeof(ZStream)
     )
     ret == Z_OK || error("zlib deflateInit2_ failed: $ret")
     nothing
 end
 
-function _deflate!(strm::ZStream, flush::Cint, buf::Vector{UInt8}, output::Vector{UInt8})::Cint
+function _deflate!(
+    strm::ZStream, flush::Cint, buf::Vector{UInt8}, output::Vector{UInt8}
+)::Cint
     GC.@preserve strm buf output begin
-        strm.next_out  = pointer(output)
+        strm.next_out = pointer(output)
         strm.avail_out = UInt32(length(output))
-        ret            = ccall((:deflate, Zlib_jll.libz), Cint, (Ptr{ZStream}, Cint), pointer_from_objref(strm), flush)
+        ret = ccall(
+            (:deflate, Zlib_jll.libz),
+            Cint,
+            (Ptr{ZStream}, Cint),
+            pointer_from_objref(strm),
+            flush
+        )
         ret
     end
 end
 
 function _deflate_end!(strm::ZStream)
-    GC.@preserve strm ccall((:deflateEnd, Zlib_jll.libz), Cint, (Ptr{ZStream},), pointer_from_objref(strm))
+    GC.@preserve strm ccall(
+        (:deflateEnd, Zlib_jll.libz), Cint, (Ptr{ZStream},), pointer_from_objref(strm)
+    )
 end
 
 function _inflate_init!(strm::ZStream)
@@ -157,18 +186,26 @@ function _inflate_init!(strm::ZStream)
         pointer_from_objref(strm),
         Cint(15),
         pointer(ZLIB_VERSION),
-        sizeof(ZStream),
+        sizeof(ZStream)
     )
     ret == Z_OK || error("zlib inflateInit2_ failed: $ret")
     nothing
 end
 
 function _inflate!(strm::ZStream, flush::Cint)::Cint
-    GC.@preserve strm ccall((:inflate, Zlib_jll.libz), Cint, (Ptr{ZStream}, Cint), pointer_from_objref(strm), flush)
+    GC.@preserve strm ccall(
+        (:inflate, Zlib_jll.libz),
+        Cint,
+        (Ptr{ZStream}, Cint),
+        pointer_from_objref(strm),
+        flush
+    )
 end
 
 function _inflate_end!(strm::ZStream)
-    GC.@preserve strm ccall((:inflateEnd, Zlib_jll.libz), Cint, (Ptr{ZStream},), pointer_from_objref(strm))
+    GC.@preserve strm ccall(
+        (:inflateEnd, Zlib_jll.libz), Cint, (Ptr{ZStream},), pointer_from_objref(strm)
+    )
 end
 
 # =====================================================================
@@ -193,18 +230,22 @@ end
 Like `serialize_paths` but calls `fv(index, path, val)` for each path.
 Mirrors `serialize_paths_with_auxdata`.
 """
-function serialize_paths_with_auxdata(m::PathMap{V, A}, target::IO, fv::Function) where {V, A}
+function serialize_paths_with_auxdata(
+    m::PathMap{V, A}, target::IO, fv::Function
+) where {V, A}
     k = Ref(0)
     z = read_zipper(m)
     # Use structural DFS (zipper_is_val) instead of _to_next_get_val!
     # so that PathMap{UnitVal} works correctly (nothing val ≠ no val).
-    serialize_paths_from_funcs(target, () -> _paths_ser_to_next_val!(z), () -> begin
-        p = collect(zipper_path(z))
-        v = zipper_val(z)
-        fv(k[], p, v)
-        k[] += 1
-        p
-    end)
+    serialize_paths_from_funcs(
+        target, () -> _paths_ser_to_next_val!(z), () -> begin
+            p = collect(zipper_path(z))
+            v = zipper_val(z)
+            fv(k[], p, v)
+            k[] += 1
+            p
+        end
+    )
 end
 
 """
@@ -239,20 +280,28 @@ end
 Low-level: calls `advance_f()` until false, then `path_f()` for each path.
 Mirrors `serialize_paths_from_funcs`.
 """
-function serialize_paths_from_funcs(target::IO, advance_f::Function, path_f::Function)::SerializationStats
+function serialize_paths_from_funcs(
+    target::IO, advance_f::Function, path_f::Function
+)::SerializationStats
     strm = ZStream()
     _deflate_init!(strm, 7)
-    obuf   = Vector{UInt8}(undef, PATHS_CHUNK)
+    obuf = Vector{UInt8}(undef, PATHS_CHUNK)
     npaths = 0
 
     function _flush_output!(flush::Cint, input_bytes::AbstractVector{UInt8}, input_len::Int)
         GC.@preserve strm input_bytes obuf begin
-            strm.next_in  = pointer(input_bytes)
+            strm.next_in = pointer(input_bytes)
             strm.avail_in = UInt32(input_len)
             while true
-                strm.next_out  = pointer(obuf)
+                strm.next_out = pointer(obuf)
                 strm.avail_out = UInt32(PATHS_CHUNK)
-                ret            = ccall((:deflate, Zlib_jll.libz), Cint, (Ptr{ZStream}, Cint), pointer_from_objref(strm), flush)
+                ret = ccall(
+                    (:deflate, Zlib_jll.libz),
+                    Cint,
+                    (Ptr{ZStream}, Cint),
+                    pointer_from_objref(strm),
+                    flush
+                )
                 ret == Cint(-2) && error("zlib deflate stream error")
                 have = PATHS_CHUNK - Int(strm.avail_out)
                 have > 0 && write(target, @view obuf[1:have])
@@ -268,7 +317,7 @@ function serialize_paths_from_funcs(target::IO, advance_f::Function, path_f::Fun
         p = path_f()
         p === nothing && continue
         pv = p isa Vector{UInt8} ? p : collect(UInt8, p)
-        l  = length(pv)
+        l = length(pv)
         # Write 4-byte LE length
         lenbuf[1] = UInt8(l & 0xff)
         lenbuf[2] = UInt8((l >> 8) & 0xff)
@@ -304,7 +353,9 @@ end
 Like `deserialize_paths` but values are produced by `fv(index, path)`.
 Mirrors `deserialize_paths_with_auxdata`.
 """
-function deserialize_paths_with_auxdata(m::PathMap{V, A}, source::IO, fv::Function) where {V, A}
+function deserialize_paths_with_auxdata(
+    m::PathMap{V, A}, source::IO, fv::Function
+) where {V, A}
     for_each_deserialized_path(source) do k, p
         v = fv(k, p)
         set_val_at!(m, p, v)
@@ -336,13 +387,13 @@ function for_each_deserialized_path(f::Function, source::IO)::DeserializationSta
         nb == 0 && break
 
         GC.@preserve strm ibuf begin
-            strm.next_in  = pointer(ibuf)
+            strm.next_in = pointer(ibuf)
             strm.avail_in = UInt32(nb)
         end
 
         while true  # decompressing inner loop
             GC.@preserve strm obuf begin
-                strm.next_out  = pointer(obuf)
+                strm.next_out = pointer(obuf)
                 strm.avail_out = UInt32(length(obuf))
             end
             ret = _inflate!(strm, Z_NO_FLUSH)

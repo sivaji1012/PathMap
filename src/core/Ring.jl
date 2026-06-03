@@ -175,14 +175,14 @@ Values are ordered (lowest to highest): `Element < Identity < None`.
 Higher values make stronger guarantees about the operation outcome.
 """
 @enum AlgebraicStatus::UInt8 begin
-    ALG_STATUS_ELEMENT  = 0   # self contains the operation's output
+    ALG_STATUS_ELEMENT = 0   # self contains the operation's output
     ALG_STATUS_IDENTITY = 1   # self was unmodified by the operation
-    ALG_STATUS_NONE     = 2   # self was annihilated, now empty
+    ALG_STATUS_NONE = 2   # self was annihilated, now empty
 end
 
-is_none(s::AlgebraicStatus)     = s == ALG_STATUS_NONE
+is_none(s::AlgebraicStatus) = s == ALG_STATUS_NONE
 is_identity(s::AlgebraicStatus) = s == ALG_STATUS_IDENTITY
-is_element(s::AlgebraicStatus)  = s == ALG_STATUS_ELEMENT
+is_element(s::AlgebraicStatus) = s == ALG_STATUS_ELEMENT
 
 """
     merge_status(a::AlgebraicStatus, b::AlgebraicStatus, a_none::Bool, b_none::Bool) -> AlgebraicStatus
@@ -192,7 +192,9 @@ operand values were already `None` (true) or made None by the operation
 (false). For ops that can't convert non-None to None (like join), pass
 `(true, true)`.
 """
-function merge_status(a::AlgebraicStatus, b::AlgebraicStatus, a_none::Bool, b_none::Bool)::AlgebraicStatus
+function merge_status(
+    a::AlgebraicStatus, b::AlgebraicStatus, a_none::Bool, b_none::Bool
+)::AlgebraicStatus
     if a == ALG_STATUS_NONE
         b == ALG_STATUS_NONE && return ALG_STATUS_NONE
         b == ALG_STATUS_ELEMENT && return ALG_STATUS_ELEMENT
@@ -341,7 +343,9 @@ end
 Internal helper for default `join_into!`/`meet_into!` impls. 1:1 port of
 `in_place_default_impl`.
 """
-function _in_place_default_impl!(result::AlgebraicResult, self_ref, other, default_f, convert_f)::AlgebraicStatus
+function _in_place_default_impl!(
+    result::AlgebraicResult, self_ref, other, default_f, convert_f
+)::AlgebraicStatus
     if is_none(result)
         default_f(self_ref)
         return ALG_STATUS_NONE
@@ -397,7 +401,9 @@ function join_all(xs::AbstractVector{V})::AlgebraicResult{V} where {V}
 end
 
 # Internal: accumulate join into FatAlgebraicResult (ports FatAlgebraicResult::join)
-function _fat_join(f::FatAlgebraicResult{V}, arg::V, arg_idx::Int)::FatAlgebraicResult{V} where {V}
+function _fat_join(
+    f::FatAlgebraicResult{V}, arg::V, arg_idx::Int
+)::FatAlgebraicResult{V} where {V}
     if f.element === nothing
         return FatAlgebraicResult{V}(f.identity_mask | (UInt64(1) << arg_idx), arg)
     end
@@ -427,7 +433,9 @@ end
 # Implements `Lattice for Option<V: Lattice + Clone>`. In Julia, this is
 # method dispatch on Union{Nothing, V}.
 
-function pjoin(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{Union{Nothing, V}} where {V}
+function pjoin(
+    a::Union{Nothing, V}, b::Union{Nothing, V}
+)::AlgebraicResult{Union{Nothing, V}} where {V}
     if a === nothing
         b === nothing && return AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
         return AlgResIdentity(COUNTER_IDENT)
@@ -444,7 +452,9 @@ function pjoin(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{Unio
     end
 end
 
-function pmeet(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{Union{Nothing, V}} where {V}
+function pmeet(
+    a::Union{Nothing, V}, b::Union{Nothing, V}
+)::AlgebraicResult{Union{Nothing, V}} where {V}
     if a === nothing
         b === nothing && return AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
         return AlgResElement{Union{Nothing, V}}(nothing)
@@ -461,7 +471,9 @@ function pmeet(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{Unio
     end
 end
 
-function psubtract(a::Union{Nothing, V}, b::Union{Nothing, V})::AlgebraicResult{Union{Nothing, V}} where {V}
+function psubtract(
+    a::Union{Nothing, V}, b::Union{Nothing, V}
+)::AlgebraicResult{Union{Nothing, V}} where {V}
     if a === nothing
         return AlgResIdentity(SELF_IDENT)
     else
@@ -541,7 +553,8 @@ end
 
 # psubtract for signed ints: equal → None, otherwise Identity(SELF)
 for T in (Int8, Int16, Int32, Int64, Int128)
-    @eval psubtract(a::$T, b::$T)::AlgebraicResult{$T} = a == b ? AlgResNone() : AlgResIdentity(SELF_IDENT)
+    @eval psubtract(a::$T, b::$T)::AlgebraicResult{$T} =
+        a == b ? AlgResNone() : AlgResIdentity(SELF_IDENT)
 end
 
 # psubtract for unsigned ints: saturating subtraction
@@ -781,7 +794,9 @@ end
 # Ports ring.rs set_lattice! / set_dist_lattice! macros + impls.
 # =====================================================================
 
-function _set_lattice_update_ident!(result, inner_result, key, sv, ov, is_ident::Ref{Bool}, is_cident::Ref{Bool})
+function _set_lattice_update_ident!(
+    result, inner_result, key, sv, ov, is_ident::Ref{Bool}, is_cident::Ref{Bool}
+)
     if inner_result isa AlgResNone
         is_ident[] = false;
         is_cident[] = false
@@ -816,12 +831,14 @@ function _set_lattice_integrate(result, is_ident, is_cident, self_len, other_len
 end
 
 function pjoin(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
-    result    = Dict{K, V}()
-    is_ident  = Ref(length(a) >= length(b))
+    result = Dict{K, V}()
+    is_ident = Ref(length(a) >= length(b))
     is_cident = Ref(length(a) <= length(b))
     for (k, av) in a
         if haskey(b, k)
-            _set_lattice_update_ident!(result, pjoin(av, b[k]), k, av, b[k], is_ident, is_cident)
+            _set_lattice_update_ident!(
+                result, pjoin(av, b[k]), k, av, b[k], is_ident, is_cident
+            )
         else
             result[k] = av;
             is_cident[] = false
@@ -846,7 +863,7 @@ function pmeet(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
     for (k, sv) in smaller
         if haskey(larger, k)
             ov = larger[k]
-            r  = pmeet(sv, ov)
+            r = pmeet(sv, ov)
             _set_lattice_update_ident!(result, r, k, sv, ov, is_ident, is_cident)
         else
             is_ident[] = false
@@ -877,9 +894,13 @@ function psubtract(a::Dict{K, V}, b::Dict{K, V}) where {K, V}
             is_ident[] = false
         end
     end
-    isempty(result) ? AlgResNone() :
-    is_ident[]      ? AlgResIdentity(SELF_IDENT) :
-    AlgResElement(result)
+    if isempty(result)
+        AlgResNone()
+    elseif is_ident[]
+        AlgResIdentity(SELF_IDENT)
+    else
+        AlgResElement(result)
+    end
 end
 
 # Set{K} lattice (values are Nothing)
@@ -909,9 +930,13 @@ end
 
 psubtract(a::Set{K}, b::Set{K}) where {K} = begin
     result = setdiff(a, b)
-    isempty(result) ? AlgResNone() :
-    result == a     ? AlgResIdentity(SELF_IDENT) :
-    AlgResElement(result)
+    if isempty(result)
+        AlgResNone()
+    elseif result == a
+        AlgResIdentity(SELF_IDENT)
+    else
+        AlgResElement(result)
+    end
 end
 
 export SELF_IDENT, COUNTER_IDENT
@@ -950,14 +975,14 @@ struct UnitVal end
 const UNIT_VAL = UnitVal()
 
 Base.:(==)(::UnitVal, ::UnitVal) = true
-Base.hash(::UnitVal, h::UInt)    = hash(:UnitVal, h)
+Base.hash(::UnitVal, h::UInt) = hash(:UnitVal, h)
 
 # Lattice impls for UnitVal — mirrors Rust `impl Lattice for ()`.
 # UnitVal ∨ UnitVal = UnitVal (identity on both sides).
 # UnitVal ∧ UnitVal = UnitVal (identity on both sides).
 # UnitVal − UnitVal = ∅ (unit minus itself = nothing).
-pjoin(::UnitVal, ::UnitVal)     = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
-pmeet(::UnitVal, ::UnitVal)     = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
+pjoin(::UnitVal, ::UnitVal) = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
+pmeet(::UnitVal, ::UnitVal) = AlgResIdentity(SELF_IDENT | COUNTER_IDENT)
 psubtract(::UnitVal, ::UnitVal) = AlgResNone()
 
 export UnitVal, UNIT_VAL

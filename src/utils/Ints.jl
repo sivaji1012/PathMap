@@ -86,7 +86,9 @@ Asserts `length(xs) <= 8` and `length(bob) <= sizeof(eltype(xs))*8`.
 
 Port of `pathmap::utils::bob_to_indices`.
 """
-function bob_to_indices!(xs::AbstractVector{R}, bob::AbstractVector{UInt8}) where {R <: Unsigned}
+function bob_to_indices!(
+    xs::AbstractVector{R}, bob::AbstractVector{UInt8}
+) where {R <: Unsigned}
     @assert length(xs) <= 8 && length(bob) <= sizeof(R)*8
     for i in 0:(length(bob) - 1)
         for k in 0:(length(xs) - 1)
@@ -111,7 +113,9 @@ Port of `pathmap::utils::indices_to_weave`. Upstream takes
 `xs: &[usize]` regardless of the `PathInteger<NUM_SIZE>` phantom; here
 `num_size` is an explicit parameter because Julia lacks const generics.
 """
-function indices_to_weave!(weave::Vector{UInt8}, xs::AbstractVector{<:Integer}, num_size::Int)
+function indices_to_weave!(
+    weave::Vector{UInt8}, xs::AbstractVector{<:Integer}, num_size::Int
+)
     for c in (num_size - 1):-1:0
         for i in eachindex(xs)
             push!(weave, UInt8((xs[i] >> (c*8)) & 0xFF))
@@ -130,7 +134,9 @@ from `length(weave) ÷ length(xs)`.
 
 Port of `pathmap::utils::weave_to_indices`.
 """
-function weave_to_indices!(xs::AbstractVector{R}, weave::AbstractVector{UInt8}) where {R <: Unsigned}
+function weave_to_indices!(
+    xs::AbstractVector{R}, weave::AbstractVector{UInt8}
+) where {R <: Unsigned}
     n = length(xs)
     n == 0 && return nothing
     @assert length(weave) % n == 0

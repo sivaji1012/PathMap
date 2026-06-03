@@ -19,15 +19,15 @@ State invariants:
 # =====================================================================
 
 mutable struct TrieRefBorrowed{V, A <: Allocator}
-    focus_node :: Union{Nothing, TrieNodeODRc{V, A}}
-    node_key   :: Vector{UInt8}        # empty = at node boundary
-    val        :: Union{Nothing, V}    # set only at boundary (node_key empty)
-    alloc      :: A
+    focus_node::Union{Nothing, TrieNodeODRc{V, A}}
+    node_key::Vector{UInt8}        # empty = at node boundary
+    val::Union{Nothing, V}    # set only at boundary (node_key empty)
+    alloc::A
 end
 
 # Type aliases — Owned is the same as Borrowed in Julia (GC owns everything)
 const TrieRefOwned{V, A} = TrieRefBorrowed{V, A}
-const TrieRef{V, A}      = TrieRefBorrowed{V, A}
+const TrieRef{V, A} = TrieRefBorrowed{V, A}
 
 # =====================================================================
 # Constructors
@@ -36,7 +36,8 @@ const TrieRef{V, A}      = TrieRefBorrowed{V, A}
 """
 Invalid (bad) sentinel.
 """
-_tr_new_invalid(::Type{V}, alloc::A) where {V, A <: Allocator} = TrieRefBorrowed{V, A}(nothing, UInt8[], nothing, alloc)
+_tr_new_invalid(::Type{V}, alloc::A) where {V, A <: Allocator} =
+    TrieRefBorrowed{V, A}(nothing, UInt8[], nothing, alloc)
 
 _tr_new_invalid(::Type{V}) where {V} = _tr_new_invalid(V, GlobalAlloc())
 
@@ -47,7 +48,9 @@ Internal constructor.  Descends `path` from `node_rc` via `node_along_path`,
 then builds the appropriate state (invalid / has-key / boundary).
 Ports `TrieRefBorrowed::new_with_node_and_path_in` and `TrieRefOwned::new_with_node_and_path_in`.
 """
-function _tr_new(node_rc::TrieNodeODRc{V, A}, root_val::Union{Nothing, V}, path, alloc::A) where {V, A <: Allocator}
+function _tr_new(
+    node_rc::TrieNodeODRc{V, A}, root_val::Union{Nothing, V}, path, alloc::A
+) where {V, A <: Allocator}
     (final_rc, key, val) = node_along_path(node_rc, path, root_val, false)
     key_len = length(key)
     if key_len > MAX_NODE_KEY_BYTES
@@ -75,10 +78,10 @@ function _tr_new_from_key(
     root_val::Union{Nothing, V},
     node_key::Vector{UInt8},
     path::AbstractVector{UInt8},
-    alloc::A,
+    alloc::A
 ) where {V, A <: Allocator}
     node_key_len = length(node_key)
-    path_len     = length(path)
+    path_len = length(path)
 
     cur_node = node_rc
     cur_path = path   # will be narrowed as we step
@@ -86,15 +89,15 @@ function _tr_new_from_key(
     if node_key_len > 0 && path_len > 0
         # Build a combined key = node_key ++ first chunk of path (capped at MAX_NODE_KEY_BYTES)
         remaining_cap = MAX_NODE_KEY_BYTES - node_key_len
-        chunk_len     = min(remaining_cap, path_len)
-        combined      = vcat(node_key, path[1:chunk_len])
+        chunk_len = min(remaining_cap, path_len)
+        combined = vcat(node_key, path[1:chunk_len])
 
         result = node_get_child(as_tagged(node_rc), combined)
         if result !== nothing
             consumed, next_rc = result
             # consumed ≥ node_key_len (we consumed at least the existing key)
             cur_node = next_rc
-            step     = consumed - node_key_len   # bytes consumed from path
+            step = consumed - node_key_len   # bytes consumed from path
             cur_path = view(path, (step + 1):path_len)
         else
             # Couldn't step down — treat combined as the new path from current node
@@ -214,7 +217,9 @@ function tr_trie_ref_at_path(t::TrieRefBorrowed{V, A}, path) where {V, A}
     if !isempty(key)
         _tr_new_from_key(t.focus_node, nothing, key, collect(UInt8, path), t.alloc)
     else
-        _tr_new_from_key(t.focus_node, tr_get_val(t), UInt8[], collect(UInt8, path), t.alloc)
+        _tr_new_from_key(
+            t.focus_node, tr_get_val(t), UInt8[], collect(UInt8, path), t.alloc
+        )
     end
 end
 

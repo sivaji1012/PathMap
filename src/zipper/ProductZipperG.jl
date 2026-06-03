@@ -18,84 +18,84 @@ Used by `space_query_multi_i` when pattern factors include non-BTM sources.
 # Each method dispatches to the right function for the concrete zipper type.
 # =====================================================================
 
-_zpg_path_exists(z::ReadZipperCore)  = zipper_path_exists(z)
-_zpg_path_exists(z::PrefixZipper)    = pz_path_exists(z)
+_zpg_path_exists(z::ReadZipperCore) = zipper_path_exists(z)
+_zpg_path_exists(z::PrefixZipper) = pz_path_exists(z)
 _zpg_path_exists(z::DependentZipper) = dpz_path_exists(z)
 
-_zpg_is_val(z::ReadZipperCore)  = zipper_is_val(z)
-_zpg_is_val(z::PrefixZipper)    = pz_is_val(z)
+_zpg_is_val(z::ReadZipperCore) = zipper_is_val(z)
+_zpg_is_val(z::PrefixZipper) = pz_is_val(z)
 _zpg_is_val(z::DependentZipper) = dpz_is_val(z)
 
-_zpg_child_count(z::ReadZipperCore)  = zipper_child_count(z)
-_zpg_child_count(z::PrefixZipper)    = pz_child_count(z)
+_zpg_child_count(z::ReadZipperCore) = zipper_child_count(z)
+_zpg_child_count(z::PrefixZipper) = pz_child_count(z)
 _zpg_child_count(z::DependentZipper) = dpz_child_count(z)
 
-_zpg_child_mask(z::ReadZipperCore)  = zipper_child_mask(z)
-_zpg_child_mask(z::PrefixZipper)    = pz_child_mask(z)
+_zpg_child_mask(z::ReadZipperCore) = zipper_child_mask(z)
+_zpg_child_mask(z::PrefixZipper) = pz_child_mask(z)
 _zpg_child_mask(z::DependentZipper) = dpz_child_mask(z)
 
-_zpg_path(z::ReadZipperCore)  = zipper_path(z)
-_zpg_path(z::PrefixZipper)    = pz_path(z)
+_zpg_path(z::ReadZipperCore) = zipper_path(z)
+_zpg_path(z::PrefixZipper) = pz_path(z)
 _zpg_path(z::DependentZipper) = dpz_path(z)
 
-_zpg_origin_path(z::ReadZipperCore)  = z.prefix_buf  # full buffer = origin + relative path
-_zpg_origin_path(z::PrefixZipper)    = pz_origin_path(z)
+_zpg_origin_path(z::ReadZipperCore) = z.prefix_buf  # full buffer = origin + relative path
+_zpg_origin_path(z::PrefixZipper) = pz_origin_path(z)
 _zpg_origin_path(z::DependentZipper) = collect(_zpg_path(z))  # no prefix for DependentZipper
 
-_zpg_root_prefix_len(z::ReadZipperCore)  = 0
-_zpg_root_prefix_len(z::PrefixZipper)    = z.origin_depth
+_zpg_root_prefix_len(z::ReadZipperCore) = 0
+_zpg_root_prefix_len(z::PrefixZipper) = z.origin_depth
 _zpg_root_prefix_len(z::DependentZipper) = 0
 
-_zpg_at_root(z::ReadZipperCore)  = zipper_at_root(z)
-_zpg_at_root(z::PrefixZipper)    = pz_at_root(z)
+_zpg_at_root(z::ReadZipperCore) = zipper_at_root(z)
+_zpg_at_root(z::PrefixZipper) = pz_at_root(z)
 _zpg_at_root(z::DependentZipper) = dpz_at_root(z)
 
-_zpg_reset!(z::ReadZipperCore)  = zipper_reset!(z)
-_zpg_reset!(z::PrefixZipper)    = pz_reset!(z)
+_zpg_reset!(z::ReadZipperCore) = zipper_reset!(z)
+_zpg_reset!(z::PrefixZipper) = pz_reset!(z)
 _zpg_reset!(z::DependentZipper) = dpz_reset!(z)
 
-_zpg_descend_to_existing!(z::ReadZipperCore, p)  = zipper_descend_to_existing!(z, p)
-_zpg_descend_to_existing!(z::PrefixZipper, p)    = pz_descend_to_existing!(z, p)
+_zpg_descend_to_existing!(z::ReadZipperCore, p) = zipper_descend_to_existing!(z, p)
+_zpg_descend_to_existing!(z::PrefixZipper, p) = pz_descend_to_existing!(z, p)
 _zpg_descend_to_existing!(z::DependentZipper, p) = dpz_descend_to_existing!(z, p)
 
-_zpg_descend_to!(z::ReadZipperCore, p)  = zipper_descend_to!(z, p)
-_zpg_descend_to!(z::PrefixZipper, p)    = pz_descend_to!(z, p)
+_zpg_descend_to!(z::ReadZipperCore, p) = zipper_descend_to!(z, p)
+_zpg_descend_to!(z::PrefixZipper, p) = pz_descend_to!(z, p)
 _zpg_descend_to!(z::DependentZipper, p) = dpz_descend_to!(z, p)
 
-_zpg_descend_to_byte!(z::ReadZipperCore, b)  = zipper_descend_to_byte!(z, b)
-_zpg_descend_to_byte!(z::PrefixZipper, b)    = pz_descend_to_byte!(z, b)
+_zpg_descend_to_byte!(z::ReadZipperCore, b) = zipper_descend_to_byte!(z, b)
+_zpg_descend_to_byte!(z::PrefixZipper, b) = pz_descend_to_byte!(z, b)
 _zpg_descend_to_byte!(z::DependentZipper, b) = dpz_descend_to_byte!(z, b)
 
-_zpg_descend_first_byte!(z::ReadZipperCore)  = zipper_descend_first_byte!(z)
-_zpg_descend_first_byte!(z::PrefixZipper)    = pz_descend_first_byte!(z)
+_zpg_descend_first_byte!(z::ReadZipperCore) = zipper_descend_first_byte!(z)
+_zpg_descend_first_byte!(z::PrefixZipper) = pz_descend_first_byte!(z)
 _zpg_descend_first_byte!(z::DependentZipper) = dpz_descend_first_byte!(z)
 
-_zpg_descend_until!(z::ReadZipperCore)  = zipper_descend_until!(z)
-_zpg_descend_until!(z::PrefixZipper)    = pz_descend_until!(z)
+_zpg_descend_until!(z::ReadZipperCore) = zipper_descend_until!(z)
+_zpg_descend_until!(z::PrefixZipper) = pz_descend_until!(z)
 _zpg_descend_until!(z::DependentZipper) = dpz_descend_until!(z)
 
-_zpg_ascend_byte!(z::ReadZipperCore)  = zipper_ascend_byte!(z)
-_zpg_ascend_byte!(z::PrefixZipper)    = pz_ascend_byte!(z)
+_zpg_ascend_byte!(z::ReadZipperCore) = zipper_ascend_byte!(z)
+_zpg_ascend_byte!(z::PrefixZipper) = pz_ascend_byte!(z)
 _zpg_ascend_byte!(z::DependentZipper) = dpz_ascend_byte!(z)
 
-_zpg_ascend!(z::ReadZipperCore, n)  = zipper_ascend!(z, n)
-_zpg_ascend!(z::PrefixZipper, n)    = pz_ascend!(z, n)
+_zpg_ascend!(z::ReadZipperCore, n) = zipper_ascend!(z, n)
+_zpg_ascend!(z::PrefixZipper, n) = pz_ascend!(z, n)
 _zpg_ascend!(z::DependentZipper, n) = dpz_ascend!(z, n)
 
-_zpg_ascend_until!(z::ReadZipperCore)  = zipper_ascend_until!(z)
-_zpg_ascend_until!(z::PrefixZipper)    = pz_ascend_until!(z)
+_zpg_ascend_until!(z::ReadZipperCore) = zipper_ascend_until!(z)
+_zpg_ascend_until!(z::PrefixZipper) = pz_ascend_until!(z)
 _zpg_ascend_until!(z::DependentZipper) = dpz_ascend_until!(z)
 
-_zpg_ascend_until_branch!(z::ReadZipperCore)  = zipper_ascend_until_branch!(z)
-_zpg_ascend_until_branch!(z::PrefixZipper)    = pz_ascend_until_branch!(z)
+_zpg_ascend_until_branch!(z::ReadZipperCore) = zipper_ascend_until_branch!(z)
+_zpg_ascend_until_branch!(z::PrefixZipper) = pz_ascend_until_branch!(z)
 _zpg_ascend_until_branch!(z::DependentZipper) = dpz_ascend_until_branch!(z)
 
-_zpg_to_next_sibling_byte!(z::ReadZipperCore)  = zipper_to_next_sibling_byte!(z)
-_zpg_to_next_sibling_byte!(z::PrefixZipper)    = pz_to_next_sibling_byte!(z)
+_zpg_to_next_sibling_byte!(z::ReadZipperCore) = zipper_to_next_sibling_byte!(z)
+_zpg_to_next_sibling_byte!(z::PrefixZipper) = pz_to_next_sibling_byte!(z)
 _zpg_to_next_sibling_byte!(z::DependentZipper) = dpz_to_next_sibling_byte!(z)
 
-_zpg_to_next_val!(z::ReadZipperCore)  = zipper_to_next_val!(z)
-_zpg_to_next_val!(z::PrefixZipper)    = pz_to_next_val!(z)
+_zpg_to_next_val!(z::ReadZipperCore) = zipper_to_next_val!(z)
+_zpg_to_next_val!(z::PrefixZipper) = pz_to_next_val!(z)
 _zpg_to_next_val!(z::DependentZipper) = dpz_to_next_val!(z)
 
 # NOTE: ACTZipper _zpg_* overloads are defined in pathmap/ArenaCompact.jl
@@ -117,9 +117,9 @@ is a PrefixZipper).
 `factor_paths` = offsets into `path()` at secondary boundaries.
 """
 mutable struct ProductZipperG
-    factor_paths :: Vector{Int}
-    primary      :: Any
-    secondary    :: Vector{Any}
+    factor_paths::Vector{Int}
+    primary::Any
+    secondary::Vector{Any}
 end
 
 ProductZipperG(primary, secondaries) = ProductZipperG(Int[], primary, collect(secondaries))
@@ -130,7 +130,7 @@ ProductZipperG(primary, secondaries) = ProductZipperG(Int[], primary, collect(se
 
 # 1-based index of active secondary; nothing if in primary.
 function _pzg_factor_idx(prz::ProductZipperG, truncate_up::Bool)
-    len    = length(pzg_path(prz))
+    len = length(pzg_path(prz))
     factor = length(prz.factor_paths)
     factor == 0 && return nothing
     while truncate_up && factor >= 1 && prz.factor_paths[factor] == len
@@ -146,12 +146,12 @@ end
 
 function _pzg_is_path_end(prz::ProductZipperG)
     idx = _pzg_factor_idx(prz, false)
-    z   = idx !== nothing ? prz.secondary[idx] : prz.primary
+    z = idx !== nothing ? prz.secondary[idx] : prz.primary
     _zpg_child_count(z) == 0 && _zpg_path_exists(z)
 end
 
 function _pzg_exit_factors!(prz::ProductZipperG)
-    len    = length(pzg_path(prz))
+    len = length(pzg_path(prz))
     exited = false
     while !isempty(prz.factor_paths) && prz.factor_paths[end] == len
         pop!(prz.factor_paths)
@@ -161,7 +161,7 @@ function _pzg_exit_factors!(prz::ProductZipperG)
 end
 
 function _pzg_enter_factors!(prz::ProductZipperG)
-    len     = length(pzg_path(prz))
+    len = length(pzg_path(prz))
     entered = false
     if length(prz.factor_paths) < length(prz.secondary) && _pzg_is_path_end(prz)
         push!(prz.factor_paths, len)
@@ -178,11 +178,11 @@ pzg_path(prz::ProductZipperG) = _zpg_path(prz.primary)
 pzg_origin_path(prz::ProductZipperG) = _zpg_origin_path(prz.primary)
 pzg_root_prefix_len(prz::ProductZipperG) = _zpg_root_prefix_len(prz.primary)
 
-pzg_is_val(prz::ProductZipperG)       = _zpg_is_val(_pzg_active(prz, true))
-pzg_path_exists(prz::ProductZipperG)  = _zpg_path_exists(_pzg_active(prz, true))
-pzg_child_count(prz::ProductZipperG)  = _zpg_child_count(_pzg_active(prz, false))
-pzg_child_mask(prz::ProductZipperG)   = _zpg_child_mask(_pzg_active(prz, false))
-pzg_at_root(prz::ProductZipperG)      = isempty(pzg_path(prz))
+pzg_is_val(prz::ProductZipperG) = _zpg_is_val(_pzg_active(prz, true))
+pzg_path_exists(prz::ProductZipperG) = _zpg_path_exists(_pzg_active(prz, true))
+pzg_child_count(prz::ProductZipperG) = _zpg_child_count(_pzg_active(prz, false))
+pzg_child_mask(prz::ProductZipperG) = _zpg_child_mask(_pzg_active(prz, false))
+pzg_at_root(prz::ProductZipperG) = isempty(pzg_path(prz))
 pzg_factor_paths(prz::ProductZipperG) = prz.factor_paths
 
 # focus_factor: mirrors ProductZipperG::ZipperProduct impl.
@@ -227,7 +227,7 @@ end
 # =====================================================================
 
 function pzg_descend_to_existing!(prz::ProductZipperG, path)
-    pv        = collect(UInt8, path)
+    pv = collect(UInt8, path)
     descended = 0
     while !isempty(pv)
         _pzg_enter_factors!(prz)
@@ -248,11 +248,11 @@ function pzg_descend_to_existing!(prz::ProductZipperG, path)
 end
 
 function pzg_descend_to!(prz::ProductZipperG, path)
-    pv   = collect(UInt8, path)
+    pv = collect(UInt8, path)
     good = pzg_descend_to_existing!(prz, pv)
     good == length(pv) && return nothing
     rest = pv[(good + 1):end]
-    idx  = _pzg_factor_idx(prz, false)
+    idx = _pzg_factor_idx(prz, false)
     if idx !== nothing
         _zpg_descend_to!(prz.secondary[idx], rest)
     end
@@ -263,7 +263,7 @@ pzg_descend_to_byte!(prz::ProductZipperG, k::UInt8) = pzg_descend_to!(prz, UInt8
 
 function pzg_descend_first_byte!(prz::ProductZipperG)::Bool
     mask = pzg_child_mask(prz)
-    b    = indexed_bit(mask, 0, true)
+    b = indexed_bit(mask, 0, true)
     b === nothing && return false
     pzg_descend_to_byte!(prz, b)
     true
@@ -280,7 +280,8 @@ function pzg_descend_until!(prz::ProductZipperG)::Bool
             rv = _zpg_descend_until!(z)
             after = _zpg_path(z)
             after_len = length(after)
-            after_len > before && _zpg_descend_to!(prz.primary, after[(before + 1):after_len])
+            after_len > before &&
+                _zpg_descend_to!(prz.primary, after[(before + 1):after_len])
             rv
         else
             _zpg_descend_until!(prz.primary)
@@ -297,7 +298,7 @@ function pzg_ascend!(prz::ProductZipperG, steps::Int)::Bool
         _pzg_exit_factors!(prz)
         idx = _pzg_factor_idx(prz, false)
         if idx !== nothing
-            len   = length(pzg_path(prz)) - prz.factor_paths[idx]
+            len = length(pzg_path(prz)) - prz.factor_paths[idx]
             delta = min(len, remaining)
             _zpg_ascend!(prz.secondary[idx], delta)
             _zpg_ascend!(prz.primary, delta)
@@ -319,22 +320,26 @@ function _pzg_ascend_cond!(prz::ProductZipperG, allow_val::Bool)::Bool
         end
         idx = _pzg_factor_idx(prz, false)
         if idx !== nothing
-            z      = prz.secondary[idx]
+            z = prz.secondary[idx]
             before = length(_zpg_path(z))
-            rv     = allow_val ? _zpg_ascend_until!(z) : _zpg_ascend_until_branch!(z)
-            delta  = before - length(_zpg_path(z))
-            plen   -= delta
+            rv = allow_val ? _zpg_ascend_until!(z) : _zpg_ascend_until_branch!(z)
+            delta = before - length(_zpg_path(z))
+            plen -= delta
             _zpg_ascend!(prz.primary, delta)
             if rv && (pzg_child_count(prz) != 1 || (allow_val && pzg_is_val(prz)))
                 return true
             end
         else
-            return allow_val ? _zpg_ascend_until!(prz.primary) : _zpg_ascend_until_branch!(prz.primary)
+            return if allow_val
+                _zpg_ascend_until!(prz.primary)
+            else
+                _zpg_ascend_until_branch!(prz.primary)
+            end
         end
     end
 end
 
-pzg_ascend_until!(prz::ProductZipperG)        = _pzg_ascend_cond!(prz, true)
+pzg_ascend_until!(prz::ProductZipperG) = _pzg_ascend_cond!(prz, true)
 pzg_ascend_until_branch!(prz::ProductZipperG) = _pzg_ascend_cond!(prz, false)
 
 function pzg_to_next_sibling_byte!(prz::ProductZipperG)::Bool
@@ -342,7 +347,7 @@ function pzg_to_next_sibling_byte!(prz::ProductZipperG)::Bool
     cur_byte = last(pzg_path(prz))
     pzg_ascend!(prz, 1) || return false
     mask = pzg_child_mask(prz)
-    nb   = next_bit(mask, cur_byte)
+    nb = next_bit(mask, cur_byte)
     if nb !== nothing
         pzg_descend_to_byte!(prz, nb)
         return true

@@ -83,14 +83,26 @@ using PrecompileTools
     wz_remove_prefix!(wz6, 3)
 
     # ── Morphisms ─────────────────────────────────────────────────────
-    cata_cached(m, (mask, children, val) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
+    cata_cached(
+        m, (mask, children, val) -> (val !== nothing ? 1 : 0) + reduce(+, children, init=0)
+    )
 
-    cata_side_effect(m, (mask, children, val, path) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
+    cata_side_effect(
+        m,
+        (mask, children, val, path) ->
+            (val !== nothing ? 1 : 0) + reduce(+, children, init=0)
+    )
 
-    cata_jumping_cached(m, (mask, children, val, sub) -> (val !== nothing ? 1 : 0) + reduce(+, children, init = 0))
+    cata_jumping_cached(
+        m,
+        (mask, children, val, sub) ->
+            (val !== nothing ? 1 : 0) + reduce(+, children, init=0)
+    )
 
     cata_hybrid_cached(
-        m, (mask, children, val, sub, path) -> ((val !== nothing ? 1 : 0) + reduce(+, children, init = 0), 0)
+        m,
+        (mask, children, val, sub, path) ->
+            ((val !== nothing ? 1 : 0) + reduce(+, children, init=0), 0)
     )
 
     map_hash(m)

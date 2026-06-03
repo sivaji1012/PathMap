@@ -90,7 +90,9 @@ MaxPolicy() = MergeWith(max)
 #   - Only self has val → keep unchanged
 #   - src has children → recurse into each
 
-function _policy_join_recursive!(wz::WriteZipperCore{V, A}, rz::ReadZipperCore{V, A}, policy::F) where {V, A, F}
+function _policy_join_recursive!(
+    wz::WriteZipperCore{V, A}, rz::ReadZipperCore{V, A}, policy::F
+) where {V, A, F}
     # --- value merge at current cursor position ---
     w_val = wz_get_val(wz)
     r_val = zipper_val(rz)

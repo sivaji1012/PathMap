@@ -61,11 +61,11 @@ const NODE_ITER_FINISHED = typemax(UInt128) - UInt128(1)
 # Upstream uses these as stable tag indices for concrete node types.
 # They are used by TrieNodeODRc and TaggedNodeRef dispatch.
 
-const EMPTY_NODE_TAG      = 0
+const EMPTY_NODE_TAG = 0
 const DENSE_BYTE_NODE_TAG = 1
-const LINE_LIST_NODE_TAG  = 2
-const CELL_BYTE_NODE_TAG  = 3
-const TINY_REF_NODE_TAG   = 4
+const LINE_LIST_NODE_TAG = 2
+const CELL_BYTE_NODE_TAG = 3
+const TINY_REF_NODE_TAG = 4
 
 # =====================================================================
 # AbstractTrieNode — trait equivalent
@@ -107,7 +107,8 @@ function node_key_overlap end
 Returns true if the node contains a key that begins with `key`.
 Default implementation: `node_key_overlap(node, key) == length(key)`.
 """
-node_contains_partial_key(node::AbstractTrieNode, key) = node_key_overlap(node, key) == length(key)
+node_contains_partial_key(node::AbstractTrieNode, key) =
+    node_key_overlap(node, key) == length(key)
 
 """
     node_get_child(node, key::Vector{UInt8}) -> Union{Nothing, Tuple{Int, TrieNodeODRc}}
@@ -375,7 +376,8 @@ end
 # folds away. getfield/modifyfield! with a memory order is the generic API for an
 # `@atomic` struct field.
 @inline _has_refcnt(@nospecialize n) = hasfield(typeof(n), :refcnt)
-@inline _node_refcount(@nospecialize n) = _has_refcnt(n) ? Int(getfield(n, :refcnt, :acquire)) : 1
+@inline _node_refcount(@nospecialize n) =
+    _has_refcnt(n) ? Int(getfield(n, :refcnt, :acquire)) : 1
 @inline function _node_inc_refcnt!(@nospecialize n)
     _has_refcnt(n) && modifyfield!(n, :refcnt, +, UInt32(1), :acquire_release)
     nothing
@@ -393,7 +395,8 @@ end
 Create a new node pointer. The node carries its own refcount (node-keyed).
 Mirrors `TrieNodeODRc::new_in`.
 """
-TrieNodeODRc(node::AbstractTrieNode{V, A}, alloc::A) where {V, A <: Allocator} = TrieNodeODRc{V, A}(node, alloc)
+TrieNodeODRc(node::AbstractTrieNode{V, A}, alloc::A) where {V, A <: Allocator} =
+    TrieNodeODRc{V, A}(node, alloc)
 
 """
     TrieNodeODRc{V,A}() -> TrieNodeODRc{V,A}
@@ -446,7 +449,8 @@ Returns a stable identity for the pointed-to node (using `objectid`).
 Returns `UInt64(0)` for the empty sentinel.
 Mirrors `Arc::as_ptr as u64`.
 """
-shared_node_id(rc::TrieNodeODRc) = rc.node === nothing ? UInt64(0) : UInt64(objectid(rc.node))
+shared_node_id(rc::TrieNodeODRc) =
+    rc.node === nothing ? UInt64(0) : UInt64(objectid(rc.node))
 
 """
     make_unique!(rc::TrieNodeODRc)
@@ -506,8 +510,8 @@ function PayloadRef(child::TrieNodeODRc{V, A}) where {V, A <: Allocator}
     PayloadRef{V, A}(0x2, nothing, child)
 end
 
-is_none(p::PayloadRef)  = p._kind == 0x0
-is_val(p::PayloadRef)   = p._kind == 0x1
+is_none(p::PayloadRef) = p._kind == 0x0
+is_val(p::PayloadRef) = p._kind == 0x1
 is_child(p::PayloadRef) = p._kind == 0x2
 
 function get_val(p::PayloadRef{V}) where {V}
@@ -534,15 +538,16 @@ Owned payload: either a value `V` or a child node pointer.
 Corresponds to `ValOrChild<V, A>` in upstream.
 """
 struct ValOrChild{V, A <: Allocator}
-    _kind  :: UInt8   # 0=Val, 1=Child
-    _val   :: Union{Nothing, V}
-    _child :: Union{Nothing, TrieNodeODRc{V, A}}
+    _kind::UInt8   # 0=Val, 1=Child
+    _val::Union{Nothing, V}
+    _child::Union{Nothing, TrieNodeODRc{V, A}}
 end
 
 ValOrChild(val::V) where {V} = ValOrChild{V, GlobalAlloc}(0x0, val, nothing)
-ValOrChild(child::TrieNodeODRc{V, A}) where {V, A <: Allocator} = ValOrChild{V, A}(0x1, nothing, child)
+ValOrChild(child::TrieNodeODRc{V, A}) where {V, A <: Allocator} =
+    ValOrChild{V, A}(0x1, nothing, child)
 
-is_val(voc::ValOrChild)   = voc._kind == 0x0
+is_val(voc::ValOrChild) = voc._kind == 0x0
 is_child(voc::ValOrChild) = voc._kind == 0x1
 
 function into_val(voc::ValOrChild{V}) where {V}
@@ -672,7 +677,7 @@ Used by `_check_anr_sharing` to enable the shared-node short-circuit in
 `wz_meet_into!` and `wz_subtract_into!`.
 """
 anr_shared_id(::ANRNone) = nothing
-anr_shared_id(::ANRBorrowedDyn)  = nothing
+anr_shared_id(::ANRBorrowedDyn) = nothing
 anr_shared_id(::ANRBorrowedTiny) = nothing
 function anr_shared_id(r::ANRBorrowedRc{V, A}) where {V, A}
     id = shared_node_id(r.rc)
@@ -697,7 +702,9 @@ This is the guard for the shared-node short-circuit:
 Mirrors `check_sharing` in upstream PathMap `experimental/zipper_algebra.rs`
 (commit ade1e1b: "short-circuit on shared subtries (entry + post-descend)").
 """
-@inline function _check_anr_sharing(a::AbstractNodeRef{V, A}, b::AbstractNodeRef{V, A}) where {V, A}
+@inline function _check_anr_sharing(
+    a::AbstractNodeRef{V, A}, b::AbstractNodeRef{V, A}
+) where {V, A}
     aid = anr_shared_id(a)
     aid === nothing && return false
     bid = anr_shared_id(b)
@@ -780,7 +787,9 @@ function prestrict(a::TrieNodeODRc{V, A}, b::TrieNodeODRc{V, A}) where {V, A}
 end
 
 # Lattice on Union{Nothing, TrieNodeODRc} — ports lines 3131-3168
-function pjoin(a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}) where {V, A}
+function pjoin(
+    a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}
+) where {V, A}
     if a === nothing
         b === nothing ? AlgResNone() : AlgResIdentity(COUNTER_IDENT)
     else
@@ -788,14 +797,18 @@ function pjoin(a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNode
     end
 end
 
-function pmeet(a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}) where {V, A}
+function pmeet(
+    a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}
+) where {V, A}
     a === nothing && return AlgResNone()
     b === nothing && return AlgResNone()
     pmeet(a, b)
 end
 
 # psubtract on Union{Nothing, TrieNodeODRc}
-function psubtract(a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}) where {V, A}
+function psubtract(
+    a::Union{Nothing, TrieNodeODRc{V, A}}, b::Union{Nothing, TrieNodeODRc{V, A}}
+) where {V, A}
     a === nothing && return AlgResNone()
     b === nothing && return AlgResIdentity(SELF_IDENT)
     psubtract(a, b)
@@ -828,7 +841,9 @@ function pmeet_generic_recursive_reset!(
     sub_self = view(self_payloads, group_range)
     sub_keys = view(keys, group_range)
     sub_res = view(results, group_range)
-    if !pmeet_generic_internal!(sub_self, sub_keys, req_results, sub_res, as_tagged(next_node_rc))
+    if !pmeet_generic_internal!(
+        sub_self, sub_keys, req_results, sub_res, as_tagged(next_node_rc)
+    )
         is_ex_ref[] = false
     end
 end
@@ -845,7 +860,7 @@ function pmeet_generic_internal!(
     keys,
     req_results,
     results::AbstractVector{FatAlgebraicResult{ValOrChild{V, A}}},
-    other_node::AbstractTrieNode{V, A},
+    other_node::AbstractTrieNode{V, A}
 ) where {V, A}
     is_ex_ref = Ref(true)
 
@@ -871,7 +886,8 @@ function pmeet_generic_internal!(
                     (group_start, group_child) = cur_group
                     if !(child === group_child)
                         pmeet_generic_recursive_reset!(
-                            cur_group, is_ex_ref, idx, self_payloads, keys, req_results, results
+                            cur_group, is_ex_ref, idx, self_payloads, keys, req_results,
+                            results
                         )
                         cur_group = (idx, child)
                     end
@@ -881,7 +897,9 @@ function pmeet_generic_internal!(
                 end
             else
                 # Exact match
-                pmeet_generic_recursive_reset!(cur_group, is_ex_ref, idx, self_payloads, keys, req_results, results)
+                pmeet_generic_recursive_reset!(
+                    cur_group, is_ex_ref, idx, self_payloads, keys, req_results, results
+                )
                 cur_group = nothing
 
                 self_pr = self_payloads[idx][2]
@@ -889,18 +907,28 @@ function pmeet_generic_internal!(
                     self_link = get_child(self_pr)
                     other_link = get_child(payload)
                     r = pmeet(self_link, other_link)
-                    fat_map(fat_from_binary_op_result(r, self_link, other_link), c -> ValOrChild(c), ValOrChild{V, A})
+                    fat_map(
+                        fat_from_binary_op_result(r, self_link, other_link),
+                        c -> ValOrChild(c),
+                        ValOrChild{V, A}
+                    )
                 else
                     self_val = get_val(self_pr)
                     other_val = get_val(payload)
                     r = pmeet(self_val, other_val)
-                    fat_map(fat_from_binary_op_result(r, self_val, other_val), v -> ValOrChild(v), ValOrChild{V, A})
+                    fat_map(
+                        fat_from_binary_op_result(r, self_val, other_val),
+                        v -> ValOrChild(v),
+                        ValOrChild{V, A}
+                    )
                 end
                 results[idx] = fat_res
             end
         else
             # No match in other_node — try get_node_at_key for deeper subtrie
-            pmeet_generic_recursive_reset!(cur_group, is_ex_ref, idx, self_payloads, keys, req_results, results)
+            pmeet_generic_recursive_reset!(
+                cur_group, is_ex_ref, idx, self_payloads, keys, req_results, results
+            )
             cur_group = nothing
 
             self_pr = self_payloads[idx][2]
@@ -910,10 +938,17 @@ function pmeet_generic_internal!(
                 other_opt = into_option(node_ref)
                 if other_opt !== nothing
                     r = pmeet_dyn(as_tagged(self_link), as_tagged(other_opt))
-                    fat_map(fat_from_binary_op_result(r, self_link, other_opt), c -> ValOrChild(c), ValOrChild{V, A})
+                    fat_map(
+                        fat_from_binary_op_result(r, self_link, other_opt),
+                        c -> ValOrChild(c),
+                        ValOrChild{V, A}
+                    )
                 else
-                    if is_empty_node(self_link) && node_get_val(other_node, keys[idx][1]) !== nothing
-                        FatAlgebraicResult{ValOrChild{V, A}}(SELF_IDENT, ValOrChild(TrieNodeODRc{V, A}()))
+                    if is_empty_node(self_link) &&
+                        node_get_val(other_node, keys[idx][1]) !== nothing
+                        FatAlgebraicResult{ValOrChild{V, A}}(
+                            SELF_IDENT, ValOrChild(TrieNodeODRc{V, A}())
+                        )
                     else
                         FatAlgebraicResult{ValOrChild{V, A}}(COUNTER_IDENT, nothing)
                     end
@@ -926,7 +961,9 @@ function pmeet_generic_internal!(
     end
 
     # Flush any remaining group
-    pmeet_generic_recursive_reset!(cur_group, is_ex_ref, length(keys)+1, self_payloads, keys, req_results, results)
+    pmeet_generic_recursive_reset!(
+        cur_group, is_ex_ref, length(keys)+1, self_payloads, keys, req_results, results
+    )
 
     is_ex_ref[]
 end
@@ -947,20 +984,24 @@ function pmeet_generic(
     n = length(self_payloads)
     n == 0 && return AlgResNone()
 
-    request_keys    = [(copy(p[1]), is_val(p[2])) for p in self_payloads]
-    element_results = FatAlgebraicResult{ValOrChild{V, A}}[fat_none(ValOrChild{V, A}) for _ in 1:n]
-    req_results     = [(0, PayloadRef{V, A}()) for _ in 1:n]
+    request_keys = [(copy(p[1]), is_val(p[2])) for p in self_payloads]
+    element_results = FatAlgebraicResult{ValOrChild{V, A}}[
+        fat_none(ValOrChild{V, A}) for _ in 1:n
+    ]
+    req_results = [(0, PayloadRef{V, A}()) for _ in 1:n]
 
-    is_exhaustive = pmeet_generic_internal!(self_payloads, request_keys, req_results, element_results, other)
+    is_exhaustive = pmeet_generic_internal!(
+        self_payloads, request_keys, req_results, element_results, other
+    )
 
-    is_none_all     = true
-    combined_mask   = SELF_IDENT | COUNTER_IDENT
+    is_none_all = true
+    combined_mask = SELF_IDENT | COUNTER_IDENT
     result_payloads = Vector{Union{Nothing, ValOrChild{V, A}}}(undef, n)
 
     for i in 1:n
-        res                = element_results[i]
-        combined_mask      = combined_mask & res.identity_mask
-        is_none_all        = is_none_all && res.element === nothing
+        res = element_results[i]
+        combined_mask = combined_mask & res.identity_mask
+        is_none_all = is_none_all && res.element === nothing
         result_payloads[i] = res.element
     end
 

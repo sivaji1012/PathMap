@@ -25,8 +25,8 @@ hold its path lock until the zipper is released.
 Mirrors `ReadZipperTracked` in zipper.rs.
 """
 mutable struct ReadZipperTracked{V, A <: Allocator}
-    z       :: ReadZipperCore{V, A}
-    tracker :: Union{Nothing, ZipperTracker{TrackingRead, A}}
+    z::ReadZipperCore{V, A}
+    tracker::Union{Nothing, ZipperTracker{TrackingRead, A}}
 end
 
 function ReadZipperTracked(
@@ -70,8 +70,8 @@ hold its path lock until the zipper is released.
 Mirrors `WriteZipperTracked` in write_zipper.rs.
 """
 mutable struct WriteZipperTracked{V, A <: Allocator}
-    z       :: WriteZipperCore{V, A}
-    tracker :: Union{Nothing, ZipperTracker{TrackingWrite, A}}
+    z::WriteZipperCore{V, A}
+    tracker::Union{Nothing, ZipperTracker{TrackingWrite, A}}
 end
 
 function WriteZipperTracked(
@@ -96,9 +96,10 @@ end
 
 # Delegate write operations to the inner WriteZipperCore
 @inline wzt_set_val!(t::WriteZipperTracked{V}, v::V) where {V} = wz_set_val!(t.z, v)
-@inline wzt_remove_val!(t::WriteZipperTracked, prune::Bool = false) = wz_remove_val!(t.z, prune)
+@inline wzt_remove_val!(t::WriteZipperTracked, prune::Bool=false) =
+    wz_remove_val!(t.z, prune)
 @inline wzt_descend_to!(t::WriteZipperTracked, k) = wz_descend_to!(t.z, k)
-@inline wzt_ascend!(t::WriteZipperTracked, n::Int = 1) = wz_ascend!(t.z, n)
+@inline wzt_ascend!(t::WriteZipperTracked, n::Int=1) = wz_ascend!(t.z, n)
 @inline wzt_reset!(t::WriteZipperTracked) = wz_reset!(t.z)
 @inline wzt_path(t::WriteZipperTracked) = wz_path(t.z)
 @inline wzt_path_exists(t::WriteZipperTracked) = wz_path_exists(t.z)
@@ -129,8 +130,8 @@ Julia note: ZipperHead holds a direct reference to the PathMap rather than
 wrapping a WriteZipperCore, since Julia's GC eliminates split-borrow needs.
 """
 mutable struct ZipperHead{V, A <: Allocator}
-    pathmap       :: PathMap{V, A}
-    tracker_paths :: SharedTrackerPaths{A}
+    pathmap::PathMap{V, A}
+    tracker_paths::SharedTrackerPaths{A}
 end
 
 """
@@ -160,7 +161,9 @@ end
 
 Unchecked version — skip conflict check.  Caller guarantees no conflicts.
 """
-function zh_write_zipper_at_exclusive_path_unchecked(zh::ZipperHead{V, A}, path) where {V, A}
+function zh_write_zipper_at_exclusive_path_unchecked(
+    zh::ZipperHead{V, A}, path
+) where {V, A}
     p = collect(UInt8, path)
     wz = write_zipper_at_path(zh.pathmap, p)
     WriteZipperTracked{V, A}(wz, nothing)
@@ -177,7 +180,8 @@ function zh_read_zipper_at_path(zh::ZipperHead{V, A}, path) where {V, A}
     tracker = ZipperTracker{TrackingRead}(zh.tracker_paths, p)
     _ensure_root!(zh.pathmap)
     rz = ReadZipperCore_at_path(
-        zh.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zh.pathmap.root_val, zh.pathmap.alloc
+        zh.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zh.pathmap.root_val,
+        zh.pathmap.alloc
     )
     ReadZipperTracked(rz, tracker)
 end
@@ -191,7 +195,8 @@ function zh_read_zipper_at_path_unchecked(zh::ZipperHead{V, A}, path) where {V, 
     p = collect(UInt8, path)
     _ensure_root!(zh.pathmap)
     rz = ReadZipperCore_at_path(
-        zh.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zh.pathmap.root_val, zh.pathmap.alloc
+        zh.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zh.pathmap.root_val,
+        zh.pathmap.alloc
     )
     ReadZipperTracked{V, A}(rz, nothing)
 end
@@ -202,7 +207,9 @@ end
 After dropping a write zipper, prune any empty dangling path it created.
 Mirrors `cleanup_write_zipper` (zipper_head.rs:302).
 """
-function zh_cleanup_write_zipper!(zh::ZipperHead{V, A}, z::WriteZipperTracked{V, A}) where {V, A}
+function zh_cleanup_write_zipper!(
+    zh::ZipperHead{V, A}, z::WriteZipperTracked{V, A}
+) where {V, A}
     # The *absolute* path the zipper was rooted at lives in prefix_buf[1:origin_path_len].
     # wz_path returns the RELATIVE path inside the rooted zipper, which is empty
     # for an at-root cursor — using it here previously pruned the wrong subtree.
@@ -232,9 +239,9 @@ Thread-safe version of `ZipperHead` that owns its PathMap behind a
 `ReentrantLock`.  Mirrors `ZipperHeadOwned` in zipper_head.rs.
 """
 mutable struct ZipperHeadOwned{V, A <: Allocator}
-    _lock         :: ReentrantLock
-    pathmap       :: PathMap{V, A}
-    tracker_paths :: SharedTrackerPaths{A}
+    _lock::ReentrantLock
+    pathmap::PathMap{V, A}
+    tracker_paths::SharedTrackerPaths{A}
 end
 
 function ZipperHeadOwned(m::PathMap{V, A}) where {V, A}
@@ -265,7 +272,8 @@ function zho_read_zipper_at_path(zho::ZipperHeadOwned{V, A}, path) where {V, A}
     lock(zho._lock) do
         _ensure_root!(zho.pathmap)
         rz = ReadZipperCore_at_path(
-            zho.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zho.pathmap.root_val, zho.pathmap.alloc
+            zho.pathmap.root::TrieNodeODRc{V, A}, p, length(p), 0, zho.pathmap.root_val,
+            zho.pathmap.alloc
         )
         ReadZipperTracked(rz, tracker)
     end

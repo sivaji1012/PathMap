@@ -23,9 +23,9 @@ Virtual zipper over the union of two source tries.
 Mirrors `OverlayZipper<AV, BV, OutV, AZipper, BZipper, Mapping>`.
 """
 mutable struct OverlayZipper{VA, VB, VOut, ZA, ZB}
-    a       :: ZA                   # zipper over trie A
-    b       :: ZB                   # zipper over trie B
-    mapping :: Function             # (Union{Nothing,VA}, Union{Nothing,VB}) → Union{Nothing,VOut}
+    a::ZA                   # zipper over trie A
+    b::ZB                   # zipper over trie B
+    mapping::Function             # (Union{Nothing,VA}, Union{Nothing,VB}) → Union{Nothing,VOut}
 end
 
 """
@@ -50,8 +50,8 @@ Custom mapping function.  Mirrors `OverlayZipper::with_mapping`.
 function OverlayZipper(a::ZA, b::ZB, mapping::Function) where {ZA, ZB}
     zipper_reset!(a)
     zipper_reset!(b)
-    VA   = _overlay_val_type(ZA)
-    VB   = _overlay_val_type(ZB)
+    VA = _overlay_val_type(ZA)
+    VB = _overlay_val_type(ZB)
     VOut = VA   # best-effort; Julia can't infer return type from Function
     OverlayZipper{VA, VB, VOut, ZA, ZB}(a, b, mapping)
 end
@@ -135,7 +135,7 @@ end
 
 oz_descend_first_byte!(oz::OverlayZipper) = oz_descend_indexed_byte!(oz, 0)
 
-function oz_ascend!(oz::OverlayZipper, steps::Int = 1)
+function oz_ascend!(oz::OverlayZipper, steps::Int=1)
     zipper_ascend!(oz.a, steps) | zipper_ascend!(oz.b, steps)
 end
 
@@ -210,9 +210,9 @@ function oz_descend_until!(oz::OverlayZipper)
 end
 
 function oz_ascend_until!(oz::OverlayZipper)
-    asc_a   = zipper_ascend_until!(oz.a)
+    asc_a = zipper_ascend_until!(oz.a)
     depth_a = length(zipper_path(oz.a))
-    asc_b   = zipper_ascend_until!(oz.b)
+    asc_b = zipper_ascend_until!(oz.b)
     depth_b = length(zipper_path(oz.b))
     !(asc_a || asc_b) && return false
     path_a = zipper_path(oz.a)
@@ -226,12 +226,12 @@ function oz_ascend_until!(oz::OverlayZipper)
 end
 
 function oz_ascend_until_branch!(oz::OverlayZipper)
-    asc_a   = zipper_ascend_until_branch!(oz.a)
+    asc_a = zipper_ascend_until_branch!(oz.a)
     depth_a = length(zipper_path(oz.a))
-    asc_b   = zipper_ascend_until_branch!(oz.b)
+    asc_b = zipper_ascend_until_branch!(oz.b)
     depth_b = length(zipper_path(oz.b))
-    path_a  = zipper_path(oz.a)
-    path_b  = zipper_path(oz.b)
+    path_a = zipper_path(oz.a)
+    path_b = zipper_path(oz.b)
     if depth_b > depth_a
         zipper_descend_to!(oz.a, path_b[(depth_a + 1):end])
     elseif depth_a > depth_b

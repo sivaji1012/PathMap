@@ -19,10 +19,10 @@ Single-entry read-only node holding an inline key (≤7 bytes) and a
 borrowed `ValOrChild` payload.
 """
 struct TinyRefNode{V, A <: Allocator} <: AbstractTrieNode{V, A}
-    key      :: Vector{UInt8}        # 0..TINY_REF_MAX_KEY bytes
-    is_child :: Bool                 # true = payload is a child TrieNodeODRc
-    payload  :: ValOrChild{V, A}      # the borrowed payload
-    alloc    :: A
+    key::Vector{UInt8}        # 0..TINY_REF_MAX_KEY bytes
+    is_child::Bool                 # true = payload is a child TrieNodeODRc
+    payload::ValOrChild{V, A}      # the borrowed payload
+    alloc::A
 end
 
 """
@@ -95,12 +95,16 @@ function node_get_payloads(t::TinyRefNode{V, A}, keys_expect_val, results_buf) w
             if t.is_child
                 if !expect_val || sklen < length(key)
                     requested = true
-                    results_buf[i] = (sklen, PayloadRef{V, A}(0x2, nothing, into_child(t.payload)))
+                    results_buf[i] = (
+                        sklen, PayloadRef{V, A}(0x2, nothing, into_child(t.payload))
+                    )
                 end
             else
                 if expect_val && sklen == length(key)
                     requested = true
-                    results_buf[i] = (sklen, PayloadRef{V, A}(0x1, Ref{V}(into_val(t.payload)), nothing))
+                    results_buf[i] = (
+                        sklen, PayloadRef{V, A}(0x1, Ref{V}(into_val(t.payload)), nothing)
+                    )
                 end
             end
         end
@@ -120,10 +124,13 @@ function node_get_val_mut(::TinyRefNode, ::AbstractVector{UInt8})
     error("TinyRefNode::node_get_val_mut — unreachable (read-only node)")
 end
 
-function node_set_val!(t::TinyRefNode{V, A}, key::AbstractVector{UInt8}, val::V) where {V, A}
+function node_set_val!(
+    t::TinyRefNode{V, A}, key::AbstractVector{UInt8}, val::V
+) where {V, A}
     replacement = into_full(t)
     res = node_set_val!(replacement, key, val)
-    res isa TrieNodeODRc && error("TinyRefNode::node_set_val! — upgrade needed (unexpected)")
+    res isa TrieNodeODRc &&
+        error("TinyRefNode::node_set_val! — upgrade needed (unexpected)")
     # Return the replacement node as Err variant
     TrieNodeODRc(replacement, t.alloc)
 end
@@ -140,7 +147,9 @@ function node_remove_dangling!(::TinyRefNode, ::AbstractVector{UInt8})
     error("TinyRefNode::node_remove_dangling! — unreachable (read-only node)")
 end
 
-function node_set_branch!(t::TinyRefNode{V, A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V, A}) where {V, A}
+function node_set_branch!(
+    t::TinyRefNode{V, A}, key::AbstractVector{UInt8}, new_rc::TrieNodeODRc{V, A}
+) where {V, A}
     replacement = into_full(t)
     node_set_branch!(replacement, key, new_rc)
     TrieNodeODRc(replacement, t.alloc)
@@ -150,7 +159,9 @@ function node_remove_all_branches!(::TinyRefNode, ::AbstractVector{UInt8}, ::Boo
     error("TinyRefNode::node_remove_all_branches! — unreachable (read-only node)")
 end
 
-function node_remove_unmasked_branches!(::TinyRefNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool)
+function node_remove_unmasked_branches!(
+    ::TinyRefNode, ::AbstractVector{UInt8}, ::ByteMask, ::Bool
+)
     error("TinyRefNode::node_remove_unmasked_branches! — unreachable (read-only node)")
 end
 
@@ -158,7 +169,8 @@ node_is_empty(t::TinyRefNode) = isempty(t.key)   # empty iff header bit7 == 0 (n
 
 # Iteration — TinyRefNode is never iterated directly (unreachable in upstream)
 new_iter_token(::TinyRefNode) = error("TinyRefNode::new_iter_token — unreachable")
-iter_token_for_path(::TinyRefNode, ::AbstractVector{UInt8}) = error("TinyRefNode::iter_token_for_path — unreachable")
+iter_token_for_path(::TinyRefNode, ::AbstractVector{UInt8}) =
+    error("TinyRefNode::iter_token_for_path — unreachable")
 next_items(::TinyRefNode, ::UInt128) = error("TinyRefNode::next_items — unreachable")
 
 function node_val_count(t::TinyRefNode, cache::Dict{UInt64, Int})
@@ -176,7 +188,11 @@ node_child_iter_next(::TinyRefNode, ::UInt64) = (UInt64(0), nothing)
 
 function node_first_val_depth_along_key(t::TinyRefNode, key::AbstractVector{UInt8})
     @assert !isempty(key)
-    (!t.is_child && !node_is_empty(t) && slice_starts_with(key, t.key)) ? length(t.key) - 1 : nothing
+    if (!t.is_child && !node_is_empty(t) && slice_starts_with(key, t.key))
+        length(t.key) - 1
+    else
+        nothing
+    end
 end
 
 function nth_child_from_key(::TinyRefNode, ::AbstractVector{UInt8}, ::Int)

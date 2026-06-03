@@ -45,7 +45,8 @@ function make_set(paths)
 end
 
 animals = make_set([
-    b"mammal:dog", b"mammal:cat", b"mammal:whale", b"reptile:snake", b"reptile:turtle", b"bird:eagle", b"bird:penguin"
+    b"mammal:dog", b"mammal:cat", b"mammal:whale", b"reptile:snake", b"reptile:turtle",
+    b"bird:eagle", b"bird:penguin"
 ])
 
 swimmers = make_set([b"mammal:whale", b"reptile:turtle", b"bird:penguin", b"fish:salmon"])
@@ -114,4 +115,9 @@ println("Serialized $(val_count(swimming_animals)) paths → $(position(io)) byt
 seekstart(io)
 restored = PathMap.PathMap{Bool}()
 deserialize_paths(restored, io, true)
-println("Restored: ", val_count(restored), " paths — matches: ", val_count(restored) == val_count(swimming_animals))
+println(
+    "Restored: ",
+    val_count(restored),
+    " paths — matches: ",
+    val_count(restored) == val_count(swimming_animals)
+)

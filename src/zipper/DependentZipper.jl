@@ -24,11 +24,11 @@ Cartesian-product zipper where secondary factors are computed dynamically.
 Mirrors `DependentProductZipperG<PrimaryZ, SecondaryZ, V, C, F>`.
 """
 mutable struct DependentZipper{PZ, SZ}
-    factor_paths   :: Vector{Int}     # path lengths at factor boundaries
-    primary        :: PZ
-    secondary      :: Vector{SZ}
-    enroll_payload :: Any             # C — state threaded through enroll calls
-    enroll         :: Function        # (payload, path, factor_idx) → (payload, Union{nothing,SZ})
+    factor_paths::Vector{Int}     # path lengths at factor boundaries
+    primary::PZ
+    secondary::Vector{SZ}
+    enroll_payload::Any             # C — state threaded through enroll calls
+    enroll::Function        # (payload, path, factor_idx) → (payload, Union{nothing,SZ})
 end
 
 """
@@ -82,18 +82,18 @@ end
 
 _dpz_path_exists_inner(z::ReadZipperCore) = zipper_path_exists(z)
 _dpz_child_count_inner(z::ReadZipperCore) = zipper_child_count(z)
-_dpz_child_mask_inner(z::ReadZipperCore)  = zipper_child_mask(z)
+_dpz_child_mask_inner(z::ReadZipperCore) = zipper_child_mask(z)
 
 # Generic fallbacks for any zipper type
 _dpz_path_exists_inner(z) = false
 _dpz_child_count_inner(z) = 0
-_dpz_child_mask_inner(z)  = ByteMask()
+_dpz_child_mask_inner(z) = ByteMask()
 
 """
 Pop factor stack if top factor is at the current path length.
 """
 function _dpz_exit_factors!(dpz::DependentZipper)
-    len    = length(dpz_path(dpz))
+    len = length(dpz_path(dpz))
     exited = false
     while !isempty(dpz.factor_paths) && dpz.factor_paths[end] == len
         pop!(dpz.factor_paths)
@@ -108,7 +108,9 @@ Call enroll to create a new factor if we're at a path end.
 """
 function _dpz_enter_factors!(dpz::DependentZipper)
     _dpz_is_path_end(dpz) || return false
-    new_payload, new_z = dpz.enroll(dpz.enroll_payload, copy(dpz_path(dpz)), length(dpz.secondary))
+    new_payload, new_z = dpz.enroll(
+        dpz.enroll_payload, copy(dpz_path(dpz)), length(dpz.secondary)
+    )
     dpz.enroll_payload = new_payload
     new_z === nothing && return false
     push!(dpz.factor_paths, length(dpz_path(dpz)))
@@ -122,7 +124,11 @@ end
 
 function dpz_path_exists(dpz::DependentZipper)
     idx = _dpz_factor_idx(dpz, true)
-    idx !== nothing ? _dpz_path_exists_inner(dpz.secondary[idx]) : zipper_path_exists(dpz.primary)
+    if idx !== nothing
+        _dpz_path_exists_inner(dpz.secondary[idx])
+    else
+        zipper_path_exists(dpz.primary)
+    end
 end
 
 function dpz_is_val(dpz::DependentZipper)
@@ -137,12 +143,20 @@ end
 
 function dpz_child_count(dpz::DependentZipper)
     idx = _dpz_factor_idx(dpz, false)
-    idx !== nothing ? _dpz_child_count_inner(dpz.secondary[idx]) : zipper_child_count(dpz.primary)
+    if idx !== nothing
+        _dpz_child_count_inner(dpz.secondary[idx])
+    else
+        zipper_child_count(dpz.primary)
+    end
 end
 
 function dpz_child_mask(dpz::DependentZipper)
     idx = _dpz_factor_idx(dpz, false)
-    idx !== nothing ? _dpz_child_mask_inner(dpz.secondary[idx]) : zipper_child_mask(dpz.primary)
+    if idx !== nothing
+        _dpz_child_mask_inner(dpz.secondary[idx])
+    else
+        zipper_child_mask(dpz.primary)
+    end
 end
 
 function dpz_val(dpz::DependentZipper)
@@ -258,7 +272,8 @@ function dpz_descend_until!(dpz::DependentZipper)
                 before = length(zipper_path(sz))
                 rv = zipper_descend_until!(sz)
                 after_path = zipper_path(sz)
-                length(after_path) > before && zipper_descend_to!(dpz.primary, after_path[(before + 1):end])
+                length(after_path) > before &&
+                    zipper_descend_to!(dpz.primary, after_path[(before + 1):end])
                 moved |= rv
             end
         else
@@ -270,7 +285,7 @@ function dpz_descend_until!(dpz::DependentZipper)
     moved
 end
 
-function dpz_ascend!(dpz::DependentZipper, steps::Int = 1)
+function dpz_ascend!(dpz::DependentZipper, steps::Int=1)
     remaining = steps
     while remaining > 0
         _dpz_exit_factors!(dpz)
@@ -307,15 +322,20 @@ function _dpz_ascend_cond!(dpz::DependentZipper, allow_val::Bool)
                 delta = before - length(zipper_path(sz))
                 plen -= delta
                 zipper_ascend!(dpz.primary, delta)
-                (rv && (dpz_child_count(dpz) != 1 || (allow_val && dpz_is_val(dpz)))) && return true
+                (rv && (dpz_child_count(dpz) != 1 || (allow_val && dpz_is_val(dpz)))) &&
+                    return true
             end
         else
-            return allow_val ? zipper_ascend_until!(dpz.primary) : zipper_ascend_until_branch!(dpz.primary)
+            return if allow_val
+                zipper_ascend_until!(dpz.primary)
+            else
+                zipper_ascend_until_branch!(dpz.primary)
+            end
         end
     end
 end
 
-dpz_ascend_until!(dpz::DependentZipper)        = _dpz_ascend_cond!(dpz, true)
+dpz_ascend_until!(dpz::DependentZipper) = _dpz_ascend_cond!(dpz, true)
 dpz_ascend_until_branch!(dpz::DependentZipper) = _dpz_ascend_cond!(dpz, false)
 
 function dpz_to_next_sibling_byte!(dpz::DependentZipper)

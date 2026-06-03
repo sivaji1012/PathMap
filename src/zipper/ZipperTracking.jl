@@ -28,10 +28,10 @@ Marker: tracker guards a write zipper.
 """
 struct TrackingWrite <: AbstractTrackingMode end
 
-_tracking_mode_str(::TrackingRead)  = "read"
+_tracking_mode_str(::TrackingRead) = "read"
 _tracking_mode_str(::TrackingWrite) = "write"
-_tracks_writes(::TrackingRead)      = false
-_tracks_writes(::TrackingWrite)     = true
+_tracks_writes(::TrackingRead) = false
+_tracks_writes(::TrackingWrite) = true
 
 # =====================================================================
 # IsTracking — discriminates conflict source
@@ -39,7 +39,7 @@ _tracks_writes(::TrackingWrite)     = true
 
 @enum IsTracking begin
     IS_TRACKING_WRITE = 1
-    IS_TRACKING_READ  = 2
+    IS_TRACKING_READ = 2
 end
 
 # =====================================================================
@@ -53,9 +53,9 @@ Raised when a zipper cannot be created because an existing zipper holds
 a conflicting path lock.  Mirrors `Conflict` in zipper_tracking.rs.
 """
 struct Conflict <: Exception
-    with  :: IsTracking
-    count :: UInt32     # >0 for IS_TRACKING_READ: number of current readers
-    at    :: Vector{UInt8}
+    with::IsTracking
+    count::UInt32     # >0 for IS_TRACKING_READ: number of current readers
+    at::Vector{UInt8}
 end
 
 function Base.showerror(io::IO, c::Conflict)
@@ -68,9 +68,11 @@ function Base.showerror(io::IO, c::Conflict)
     println(io, " @ $(c.at)")
 end
 
-_write_conflict(path::AbstractVector{UInt8}) = Conflict(IS_TRACKING_WRITE, 0, Vector{UInt8}(path))
+_write_conflict(path::AbstractVector{UInt8}) =
+    Conflict(IS_TRACKING_WRITE, 0, Vector{UInt8}(path))
 
-_read_conflict(cnt::UInt32, path::AbstractVector{UInt8}) = Conflict(IS_TRACKING_READ, cnt, Vector{UInt8}(path))
+_read_conflict(cnt::UInt32, path::AbstractVector{UInt8}) =
+    Conflict(IS_TRACKING_READ, cnt, Vector{UInt8}(path))
 
 conflict_path(c::Conflict) = c.at
 
@@ -79,11 +81,12 @@ conflict_path(c::Conflict) = c.at
 # =====================================================================
 
 mutable struct TrackerPaths{A <: Allocator}
-    read_paths    :: PathMap{UInt32, A}   # val = reader count (>0)
-    written_paths :: PathMap{Bool, A}     # val = true = write lock present
+    read_paths::PathMap{UInt32, A}   # val = reader count (>0)
+    written_paths::PathMap{Bool, A}     # val = true = write lock present
 end
 
-TrackerPaths(alloc::A) where {A <: Allocator} = TrackerPaths{A}(PathMap{UInt32, A}(alloc), PathMap{Bool, A}(alloc))
+TrackerPaths(alloc::A) where {A <: Allocator} =
+    TrackerPaths{A}(PathMap{UInt32, A}(alloc), PathMap{Bool, A}(alloc))
 
 TrackerPaths() = TrackerPaths(GlobalAlloc())
 
@@ -95,11 +98,12 @@ Wraps a `ReentrantLock`-guarded `TrackerPaths`.
 Mirrors `SharedTrackerPaths` in zipper_tracking.rs.
 """
 struct SharedTrackerPaths{A <: Allocator}
-    _lock  :: ReentrantLock
-    _paths :: TrackerPaths{A}
+    _lock::ReentrantLock
+    _paths::TrackerPaths{A}
 end
 
-SharedTrackerPaths(alloc::A) where {A <: Allocator} = SharedTrackerPaths{A}(ReentrantLock(), TrackerPaths(alloc))
+SharedTrackerPaths(alloc::A) where {A <: Allocator} =
+    SharedTrackerPaths{A}(ReentrantLock(), TrackerPaths(alloc))
 
 SharedTrackerPaths() = SharedTrackerPaths(GlobalAlloc())
 
@@ -119,7 +123,9 @@ A conflict exists if any prefix of `path` has a lock, OR if any lock
 exists at `path` or any descendant.  Returns `nothing` on success.
 Mirrors `check_for_write_conflict`.
 """
-function _check_for_write_conflict(path::AbstractVector{UInt8}, written_paths::PathMap{Bool})::Union{Nothing, Conflict}
+function _check_for_write_conflict(
+    path::AbstractVector{UInt8}, written_paths::PathMap{Bool}
+)::Union{Nothing, Conflict}
     isempty(written_paths) && return nothing
     # Check ancestor locks: any prefix of path has a stored Bool=true lock
     for i in 0:length(path)
@@ -139,7 +145,9 @@ Check whether `path` conflicts with any existing read locks.
 Returns `nothing` on success, `Conflict` otherwise.
 Mirrors `check_for_read_conflict`.
 """
-function _check_for_read_conflict(path::AbstractVector{UInt8}, read_paths::PathMap{UInt32})::Union{Nothing, Conflict}
+function _check_for_read_conflict(
+    path::AbstractVector{UInt8}, read_paths::PathMap{UInt32}
+)::Union{Nothing, Conflict}
     isempty(read_paths) && return nothing
     # Check ancestor locks: any prefix of path has a stored UInt32 count
     for i in 0:length(path)
@@ -170,7 +178,9 @@ Attempt to register a write lock at `path`.
 Returns `nothing` on success, `Conflict` on failure.
 Mirrors `try_add_writer`.
 """
-function stp_try_add_writer!(stp::SharedTrackerPaths, path::AbstractVector{UInt8})::Union{Nothing, Conflict}
+function stp_try_add_writer!(
+    stp::SharedTrackerPaths, path::AbstractVector{UInt8}
+)::Union{Nothing, Conflict}
     _with_paths(stp) do paths
         c = _check_for_write_conflict(path, paths.written_paths)
         c !== nothing && return c
@@ -186,7 +196,9 @@ Attempt to register a read lock at `path`.
 Returns `nothing` on success, `Conflict` on failure.
 Mirrors `try_add_reader`.
 """
-function stp_try_add_reader!(stp::SharedTrackerPaths, path::AbstractVector{UInt8})::Union{Nothing, Conflict}
+function stp_try_add_reader!(
+    stp::SharedTrackerPaths, path::AbstractVector{UInt8}
+)::Union{Nothing, Conflict}
     _with_paths(stp) do paths
         c = _check_for_write_conflict(path, paths.written_paths)
         c !== nothing && return c
@@ -222,7 +234,8 @@ Mirrors `remove_lock` for `TrackingWrite`.
 function stp_remove_writer!(stp::SharedTrackerPaths, path::AbstractVector{UInt8})
     _with_paths(stp) do paths
         # PathMap{Bool}: get_val_at returns the Bool or nothing (not found)
-        get_val_at(paths.written_paths, path) === nothing && error("Write lock missing at path $(path)")
+        get_val_at(paths.written_paths, path) === nothing &&
+            error("Write lock missing at path $(path)")
         remove_val_at!(paths.written_paths, path, true)
     end
 end
@@ -255,12 +268,14 @@ Automatically releases the lock when garbage-collected (via `finalizer`).
 Mirrors `ZipperTracker<M>` in zipper_tracking.rs.
 """
 mutable struct ZipperTracker{M <: AbstractTrackingMode, A <: Allocator}
-    all_paths :: SharedTrackerPaths{A}
-    this_path :: Vector{UInt8}
-    _alive    :: Bool   # false after dismantle; prevents double-release in finalizer
+    all_paths::SharedTrackerPaths{A}
+    this_path::Vector{UInt8}
+    _alive::Bool   # false after dismantle; prevents double-release in finalizer
 end
 
-function ZipperTracker{TrackingRead}(stp::SharedTrackerPaths{A}, path::AbstractVector{UInt8}) where {A}
+function ZipperTracker{TrackingRead}(
+    stp::SharedTrackerPaths{A}, path::AbstractVector{UInt8}
+) where {A}
     c = stp_try_add_reader!(stp, path)
     c !== nothing && throw(c)
     t = ZipperTracker{TrackingRead, A}(stp, Vector{UInt8}(path), true)
@@ -268,7 +283,9 @@ function ZipperTracker{TrackingRead}(stp::SharedTrackerPaths{A}, path::AbstractV
     t
 end
 
-function ZipperTracker{TrackingWrite}(stp::SharedTrackerPaths{A}, path::AbstractVector{UInt8}) where {A}
+function ZipperTracker{TrackingWrite}(
+    stp::SharedTrackerPaths{A}, path::AbstractVector{UInt8}
+) where {A}
     c = stp_try_add_writer!(stp, path)
     c !== nothing && throw(c)
     t = ZipperTracker{TrackingWrite, A}(stp, Vector{UInt8}(path), true)
@@ -338,9 +355,9 @@ Returned by `stp_path_status`: whether a path is available for
 reading + writing, reading only, or completely unavailable.
 """
 @enum PathStatus begin
-    PATH_STATUS_AVAILABLE          = 1
+    PATH_STATUS_AVAILABLE = 1
     PATH_STATUS_AVAILABLE_FOR_READ = 2
-    PATH_STATUS_UNAVAILABLE        = 3
+    PATH_STATUS_UNAVAILABLE = 3
 end
 
 """
@@ -369,4 +386,5 @@ export SharedTrackerPaths
 export stp_try_add_writer!, stp_try_add_reader!, stp_add_reader_unchecked!
 export stp_remove_writer!, stp_remove_reader!, stp_path_status
 export ZipperTracker, zt_path, zt_release!, zt_into_reader
-export PathStatus, PATH_STATUS_AVAILABLE, PATH_STATUS_AVAILABLE_FOR_READ, PATH_STATUS_UNAVAILABLE
+export PathStatus,
+    PATH_STATUS_AVAILABLE, PATH_STATUS_AVAILABLE_FOR_READ, PATH_STATUS_UNAVAILABLE

@@ -71,9 +71,9 @@ abstract type AbstractByteNode{V, A <: Allocator} <: AbstractTrieNode{V, A} end
 Non-thread-safe variant. Ports `ByteNode<OrdinaryCoFree<V,A>, A>`.
 """
 mutable struct DenseByteNode{V, A <: Allocator} <: AbstractByteNode{V, A}
-    mask   :: ByteMask
-    values :: Vector{CoFreeEntry{V, A}}
-    alloc  :: A
+    mask::ByteMask
+    values::Vector{CoFreeEntry{V, A}}
+    alloc::A
     @atomic refcnt::UInt32   # node-keyed COW refcount (close-out 2-A)
     DenseByteNode{V, A}(m, v, a) where {V, A <: Allocator} = new{V, A}(m, v, a, UInt32(1))
 end
@@ -85,9 +85,9 @@ Thread-safe variant (in Rust, uses `Pin<Box<>>` for stable addresses).
 In Julia the GC provides the same guarantee. Ports `ByteNode<CellCoFree<V,A>, A>`.
 """
 mutable struct CellByteNode{V, A <: Allocator} <: AbstractByteNode{V, A}
-    mask   :: ByteMask
-    values :: Vector{CoFreeEntry{V, A}}
-    alloc  :: A
+    mask::ByteMask
+    values::Vector{CoFreeEntry{V, A}}
+    alloc::A
     @atomic refcnt::UInt32   # node-keyed COW refcount (close-out 2-A)
     CellByteNode{V, A}(m, v, a) where {V, A <: Allocator} = new{V, A}(m, v, a, UInt32(1))
 end
@@ -96,12 +96,14 @@ end
 # Constructors
 # =====================================================================
 
-DenseByteNode{V, A}(alloc::A) where {V, A <: Allocator} = DenseByteNode{V, A}(ByteMask(), CoFreeEntry{V, A}[], alloc)
+DenseByteNode{V, A}(alloc::A) where {V, A <: Allocator} =
+    DenseByteNode{V, A}(ByteMask(), CoFreeEntry{V, A}[], alloc)
 
 DenseByteNode{V, A}(alloc::A, cap::Int) where {V, A <: Allocator} =
     DenseByteNode{V, A}(ByteMask(), sizehint!(CoFreeEntry{V, A}[], cap), alloc)
 
-CellByteNode{V, A}(alloc::A) where {V, A <: Allocator} = CellByteNode{V, A}(ByteMask(), CoFreeEntry{V, A}[], alloc)
+CellByteNode{V, A}(alloc::A) where {V, A <: Allocator} =
+    CellByteNode{V, A}(ByteMask(), CoFreeEntry{V, A}[], alloc)
 
 CellByteNode{V, A}(alloc::A, cap::Int) where {V, A <: Allocator} =
     CellByteNode{V, A}(ByteMask(), sizehint!(CoFreeEntry{V, A}[], cap), alloc)
@@ -153,7 +155,9 @@ end
 Adds/replaces a child at key byte `k`. Returns old child if replaced.
 Ports `ByteNode::set_child`.
 """
-function _bn_set_child!(n::AbstractByteNode{V, A}, k::UInt8, node::TrieNodeODRc{V, A}) where {V, A}
+function _bn_set_child!(
+    n::AbstractByteNode{V, A}, k::UInt8, node::TrieNodeODRc{V, A}
+) where {V, A}
     if test_bit(n.mask, k)
         idx = Int(index_of(n.mask, k)) + 1
         @inbounds old_rec = n.values[idx].rec
@@ -239,7 +243,9 @@ end
 
 Adds/joins a child at key byte `k`. Ports `ByteNode::join_child_into`.
 """
-function _bn_join_child_into!(n::AbstractByteNode{V, A}, k::UInt8, node::TrieNodeODRc{V, A}) where {V, A}
+function _bn_join_child_into!(
+    n::AbstractByteNode{V, A}, k::UInt8, node::TrieNodeODRc{V, A}
+) where {V, A}
     if test_bit(n.mask, k)
         idx = Int(index_of(n.mask, k)) + 1
         @inbounds cf = n.values[idx]
@@ -296,7 +302,9 @@ end
 Ports `ByteNode::join_payload_into`. Dispatches to `_bn_join_child_into!` or
 `_bn_join_val_into!` based on payload type.
 """
-function _bn_join_payload_into!(n::AbstractByteNode{V, A}, k::UInt8, payload::ValOrChild{V, A}) where {V, A}
+function _bn_join_payload_into!(
+    n::AbstractByteNode{V, A}, k::UInt8, payload::ValOrChild{V, A}
+) where {V, A}
     if is_child(payload)
         _bn_join_child_into!(n, k, into_child(payload))
     else
@@ -309,7 +317,9 @@ end
 
 Sets child or value at `k` without joining. Ports `ByteNode::set_payload_owned`.
 """
-function _bn_set_payload_owned!(n::AbstractByteNode{V, A}, k::UInt8, payload::ValOrChild{V, A}) where {V, A}
+function _bn_set_payload_owned!(
+    n::AbstractByteNode{V, A}, k::UInt8, payload::ValOrChild{V, A}
+) where {V, A}
     if is_child(payload)
         _bn_set_child!(n, k, into_child(payload))
     else
@@ -369,10 +379,12 @@ Ports `combine_algebraic_results` from upstream. Given separate algebraic
 results for the `rec` and `val` fields, returns the merged CoFreeEntry state
 as `(identity_mask::UInt64, rec, val)`. `identity_mask == 0` means Element.
 """
-function _cf_combine_results(a::CoFreeEntry{V, A}, b::CoFreeEntry{V, A}, rec_res, val_res) where {V, A}
-    is_rec_none  = rec_res isa AlgResNone
+function _cf_combine_results(
+    a::CoFreeEntry{V, A}, b::CoFreeEntry{V, A}, rec_res, val_res
+) where {V, A}
+    is_rec_none = rec_res isa AlgResNone
     is_rec_ident = rec_res isa AlgResIdentity
-    is_val_none  = val_res isa AlgResNone
+    is_val_none = val_res isa AlgResNone
     is_val_ident = val_res isa AlgResIdentity
 
     if is_rec_none && is_val_none
@@ -628,7 +640,9 @@ end
 
 Ports `HeteroLattice::join_into` (mutating pjoin). Merges `other` into `self`.
 """
-function _bn_join_into!(self::N, other::N) where {V, A <: Allocator, N <: AbstractByteNode{V, A}}
+function _bn_join_into!(
+    self::N, other::N
+) where {V, A <: Allocator, N <: AbstractByteNode{V, A}}
     jm = self.mask | other.mask
     mm = self.mask & other.mask
 
@@ -691,7 +705,7 @@ function _bn_pmeet(self::AbstractByteNode{V, A}, other::AbstractByteNode{V, A}) 
     jm = self.mask | other.mask
     mm = self.mask & other.mask
 
-    is_identity         = (self.mask == mm)
+    is_identity = (self.mask == mm)
     is_counter_identity = (other.mask == mm)
 
     new_values = CoFreeEntry{V, A}[]
@@ -755,7 +769,9 @@ end
 
 Ports `ByteNode::psubtract` between two ByteNodes.
 """
-function _bn_psubtract(self::AbstractByteNode{V, A}, other::AbstractByteNode{V, A}) where {V, A}
+function _bn_psubtract(
+    self::AbstractByteNode{V, A}, other::AbstractByteNode{V, A}
+) where {V, A}
     is_identity = true
     new_node = typeof(self)(self.alloc)
     sizehint!(new_node.values, length(self.values))
@@ -804,7 +820,9 @@ end
 
 Ports `ByteNode::prestrict` between two ByteNodes.
 """
-function _bn_prestrict(self::AbstractByteNode{V, A}, other::AbstractByteNode{V, A}) where {V, A}
+function _bn_prestrict(
+    self::AbstractByteNode{V, A}, other::AbstractByteNode{V, A}
+) where {V, A}
     jm = self.mask | other.mask
     mm = self.mask & other.mask
 
@@ -872,7 +890,9 @@ end
 Merges both slots of `list_node` into `n`. Ports `ByteNode::merge_from_list_node`.
 Called by `LineListNode._convert_to_dense!` when a third entry is needed.
 """
-function merge_from_list_node!(n::AbstractByteNode{V, A}, list_node::LineListNode{V, A}) where {V, A}
+function merge_from_list_node!(
+    n::AbstractByteNode{V, A}, list_node::LineListNode{V, A}
+) where {V, A}
     self_was_empty = is_empty_mask(n.mask)
     sizehint!(n.values, length(n.values) + 2)
 
@@ -911,7 +931,9 @@ end
 Ports `psubtract_abstract` — subtract using abstract trie interface for `other`.
 Used when `other` is not a ByteNode (e.g. LineListNode, TinyRefNode).
 """
-function _bn_psubtract_abstract(self::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
+function _bn_psubtract_abstract(
+    self::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}
+) where {V, A}
     is_identity = true
     new_node = typeof(self)(self.alloc)
 
@@ -939,7 +961,11 @@ function _bn_psubtract_abstract(self::AbstractByteNode{V, A}, other::AbstractTri
 
                 if cf.rec !== nothing && !node_is_empty(as_tagged(cf.rec))
                     other_child = get_node_at_key(other, UInt8[key_byte])
-                    other_node = (other_child isa ANRNone) ? nothing : try_as_tagged(other_child)
+                    other_node = if (other_child isa ANRNone)
+                        nothing
+                    else
+                        try_as_tagged(other_child)
+                    end
                     if other_node !== nothing
                         r = psubtract_dyn(as_tagged(cf.rec), other_node)
                         if r isa AlgResNone
@@ -963,7 +989,7 @@ function _bn_psubtract_abstract(self::AbstractByteNode{V, A}, other::AbstractTri
                 new_node.mask = set(new_node.mask, key_byte)
                 push!(new_node.values, _cf_copy(cf))
             end
-        end,
+        end
     )
 
     is_empty_mask(new_node.mask) && return AlgResNone()
@@ -976,7 +1002,9 @@ end
 
 Ports `prestrict_abstract`.
 """
-function _bn_prestrict_abstract(self::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
+function _bn_prestrict_abstract(
+    self::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}
+) where {V, A}
     is_identity = true
     new_node = typeof(self)(self.alloc)
 
@@ -994,7 +1022,11 @@ function _bn_prestrict_abstract(self::AbstractByteNode{V, A}, other::AbstractTri
                 else
                     if cf.rec !== nothing
                         other_child = get_node_at_key(other, UInt8[key_byte])
-                        other_node = (other_child isa ANRNone) ? nothing : try_as_tagged(other_child)
+                        other_node = if (other_child isa ANRNone)
+                            nothing
+                        else
+                            try_as_tagged(other_child)
+                        end
                         if other_node !== nothing
                             new_cf = CoFreeEntry{V, A}()
                             r = prestrict_dyn(as_tagged(cf.rec), other_node)
@@ -1018,7 +1050,7 @@ function _bn_prestrict_abstract(self::AbstractByteNode{V, A}, other::AbstractTri
             else
                 is_identity = false
             end
-        end,
+        end
     )
 
     is_empty_mask(new_node.mask) && return AlgResNone()
@@ -1051,7 +1083,9 @@ function node_get_child(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) w
     (1, cf.rec)
 end
 
-function node_get_child_mut(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
+function node_get_child_mut(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}
+) where {V, A}
     cf = _bn_get(n, key[1])
     cf === nothing && return nothing
     cf.rec === nothing && return nothing
@@ -1065,7 +1099,9 @@ function node_replace_child!(
     @inbounds n.values[idx].rec = new_node
 end
 
-function node_get_payloads(n::AbstractByteNode{V, A}, keys_expect_val, results_buf) where {V, A}
+function node_get_payloads(
+    n::AbstractByteNode{V, A}, keys_expect_val, results_buf
+) where {V, A}
     # See upstream dense_byte_node.rs for the state-machine rationale:
     # CoFree entries can have both rec (child) and val; a rec request must
     # precede a val request for the same byte, so the val is stashed until
@@ -1085,7 +1121,7 @@ function node_get_payloads(n::AbstractByteNode{V, A}, keys_expect_val, results_b
                 unrequested_cofree_half = true
             end
             stashed_val = nothing
-            last_byte   = nothing
+            last_byte = nothing
         end
 
         # Serve stashed val if this is the matching val request
@@ -1116,7 +1152,7 @@ function node_get_payloads(n::AbstractByteNode{V, A}, keys_expect_val, results_b
             else
                 if last_byte === nothing
                     stashed_val = cf.val
-                    last_byte   = byte
+                    last_byte = byte
                 end
             end
         end
@@ -1137,13 +1173,17 @@ function node_get_val(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) whe
     cf === nothing ? nothing : cf.val
 end
 
-function node_get_val_mut(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
+function node_get_val_mut(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}
+) where {V, A}
     length(key) == 1 || return nothing
     cf = _bn_get(n, key[1])
     cf === nothing ? nothing : cf.val
 end
 
-function node_set_val!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, val::V) where {V, A}
+function node_set_val!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, val::V
+) where {V, A}
     if length(key) > 1
         child = LineListNode{V, A}(n.alloc)
         node_set_val!(child, key[2:end], val)
@@ -1154,12 +1194,16 @@ function node_set_val!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, va
     end
 end
 
-function node_remove_val!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
+function node_remove_val!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool
+) where {V, A}
     length(key) == 1 || return nothing
     _bn_remove_val!(n, key[1], prune)
 end
 
-function node_create_dangling!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
+function node_create_dangling!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}
+) where {V, A}
     if length(key) > 1
         child = LineListNode{V, A}(n.alloc)
         node_create_dangling!(child, key[2:end])
@@ -1170,7 +1214,9 @@ function node_create_dangling!(n::AbstractByteNode{V, A}, key::AbstractVector{UI
     end
 end
 
-function node_remove_dangling!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
+function node_remove_dangling!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}
+) where {V, A}
     length(key) == 1 || return 0
     k = key[1]
     test_bit(n.mask, k) || return 0
@@ -1208,7 +1254,9 @@ function node_set_branch!(
     end
 end
 
-function node_remove_all_branches!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
+function node_remove_all_branches!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool
+) where {V, A}
     length(key) > 1 && return false
     k = key[1]
     test_bit(n.mask, k) || return false
@@ -1273,13 +1321,16 @@ end
 
 function node_val_count(n::AbstractByteNode, cache::Dict{UInt64, Int})
     sum(
-        cf -> (cf.val !== nothing ? 1 : 0) + (cf.rec !== nothing ? val_count_below_node(cf.rec, cache) : 0),
+        cf ->
+            (cf.val !== nothing ? 1 : 0) +
+            (cf.rec !== nothing ? val_count_below_node(cf.rec, cache) : 0),
         n.values;
-        init = 0,
+        init=0
     )
 end
 
-node_goat_val_count(n::AbstractByteNode) = sum(cf -> cf.val !== nothing ? 1 : 0, n.values; init = 0)
+node_goat_val_count(n::AbstractByteNode) =
+    sum(cf -> cf.val !== nothing ? 1 : 0, n.values; init=0)
 
 function node_child_iter_start(n::AbstractByteNode{V, A}) where {V, A}
     for (pos, cf) in enumerate(n.values)
@@ -1301,7 +1352,9 @@ function node_first_val_depth_along_key(n::AbstractByteNode, key::AbstractVector
     (cf !== nothing && cf.val !== nothing) ? 0 : nothing
 end
 
-function nth_child_from_key(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, nth::Int) where {V, A}
+function nth_child_from_key(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, nth::Int
+) where {V, A}
     !isempty(key) && return (nothing, nothing)
     nth >= length(n.values) && return (nothing, nothing)
     idx = nth + 1  # 0-based nth → 1-based index
@@ -1310,7 +1363,9 @@ function nth_child_from_key(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8
     (k, child === nothing ? nothing : as_tagged(child))
 end
 
-function first_child_from_key(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) where {V, A}
+function first_child_from_key(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}
+) where {V, A}
     @assert isempty(key)
     @assert !isempty(n.values)
     k = indexed_bit(n.mask, 0, true)
@@ -1357,11 +1412,13 @@ function prior_branch_key(n::AbstractByteNode, key::AbstractVector{UInt8})
     test_bit(n.mask, k) ? UInt8[k] : UInt8[]
 end
 
-function get_sibling_of_child(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, nxt::Bool) where {V, A}
+function get_sibling_of_child(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, nxt::Bool
+) where {V, A}
     length(key) != 1 && return (nothing, nothing)
-    k      = key[1]
+    k = key[1]
     mask_i = ((k & 0xC0) >> 6) + 1   # 1-based word index
-    bit_i  = k & UInt8(0x3F)
+    bit_i = k & UInt8(0x3F)
 
     nb = bit_sibling(bit_i, n.mask.bits[mask_i], !nxt)
     if nb == bit_i  # no sibling in this word — search adjacent words
@@ -1402,7 +1459,9 @@ function get_node_at_key(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}) 
     ANRNone{V, A}()
 end
 
-function take_node_at_key!(n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool) where {V, A}
+function take_node_at_key!(
+    n::AbstractByteNode{V, A}, key::AbstractVector{UInt8}, prune::Bool
+) where {V, A}
     length(key) < 2 || return nothing
     @assert length(key) == 1
     k = key[1]
@@ -1519,7 +1578,9 @@ function pmeet_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) whe
     end
 end
 
-function psubtract_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
+function psubtract_dyn(
+    n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}
+) where {V, A}
     tag = node_tag(other)
     if tag == DENSE_BYTE_NODE_TAG || tag == CELL_BYTE_NODE_TAG
         _bn_psubtract(n, other)
@@ -1532,7 +1593,9 @@ function psubtract_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A})
     end
 end
 
-function prestrict_dyn(n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}) where {V, A}
+function prestrict_dyn(
+    n::AbstractByteNode{V, A}, other::AbstractTrieNode{V, A}
+) where {V, A}
     tag = node_tag(other)
     if tag == DENSE_BYTE_NODE_TAG || tag == CELL_BYTE_NODE_TAG
         _bn_prestrict(n, other)
@@ -1557,7 +1620,7 @@ end
 # =====================================================================
 
 node_tag(::DenseByteNode) = DENSE_BYTE_NODE_TAG
-node_tag(::CellByteNode)  = CELL_BYTE_NODE_TAG
+node_tag(::CellByteNode) = CELL_BYTE_NODE_TAG
 
 function convert_to_cell_node!(n::DenseByteNode{V, A}) where {V, A}
     # Convert by copying all CoFreeEntries into a new CellByteNode
@@ -1581,7 +1644,8 @@ BridgeNode child is created to hold the remaining suffix.
 Mirrors `DenseByteNode::add_payload` in dense_byte_node.rs.
 """
 function node_add_payload!(
-    n::DenseByteNode{V, A}, key::AbstractVector{UInt8}, is_child::Bool, payload::ValOrChild{V, A}
+    n::DenseByteNode{V, A}, key::AbstractVector{UInt8}, is_child::Bool,
+    payload::ValOrChild{V, A}
 ) where {V, A}
     @assert !isempty(key)
     if length(key) > 1
