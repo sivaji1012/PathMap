@@ -1,16 +1,22 @@
 using Test
 using PathMap
-using Aqua
+# Aqua is test-only [extras]: present under Pkg.test/CI but NOT in a plain
+# `julia --project=. test/runtests.jl` run (no sandbox). Load optionally.
+const _HAS_AQUA = try; @eval using Aqua; true; catch; false; end
 const PM = PathMap.PathMap   # PathMap module and PathMap type share the same name
 
 @testset "PathMap" begin
-    @testset "Aqua quality" begin
-        # unbound_args: the lattice ops take Option-style `Union{Nothing,V}` args and
-        # a more-specific `(::Nothing,::Nothing)` method handles the all-nothing case,
-        # so the `where V` methods are never instantiated unbound — intentional, skip.
-        # deps_compat check_extras=false: [extras] are dev-only tools (Cthulhu, Debugger,
-        # ProfileView, …); runtime deps carry [compat].
-        Aqua.test_all(PathMap; unbound_args=false, deps_compat=(check_extras=false,))
+    if _HAS_AQUA
+        @testset "Aqua quality" begin
+            # unbound_args: the lattice ops take Option-style `Union{Nothing,V}` args and
+            # a more-specific `(::Nothing,::Nothing)` method handles the all-nothing case,
+            # so the `where V` methods are never instantiated unbound — intentional, skip.
+            # deps_compat check_extras=false: [extras] are dev-only tools (Cthulhu, Debugger,
+            # ProfileView, …); runtime deps carry [compat].
+            Aqua.test_all(PathMap; unbound_args=false, deps_compat=(check_extras=false,))
+        end
+    else
+        @info "Aqua not loadable (plain julia --project=.) — runs under Pkg.test/CI"
     end
 
     @testset "basic CRUD" begin
